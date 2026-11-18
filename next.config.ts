@@ -1,7 +1,12 @@
 import type { NextConfig } from "next";
 
+// Product pictures are served from the Supabase Storage public bucket.
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+
 const nextConfig: NextConfig = {
-  /* config options here */
+  images: {
+    remotePatterns: supabaseUrl ? [new URL("/storage/v1/object/public/**", supabaseUrl)] : [],
+  },
   experimental: {
     agentFeedback: true,
   },

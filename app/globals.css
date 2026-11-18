@@ -1,26 +1,123 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ─────────────────────────────────────────────
+   Design system
+   Fonts are loaded in app/layout.tsx (next/font):
+     Heading     Manrope        → font-heading (h1–h6, card titles)
+     Subheading  IBM Plex Mono  → font-mono / `eyebrow` utility
+     Body        IBM Plex Sans  → font-sans (default)
+   Colors: green #5D866C · black #0A0A0A · white #FFFFFF
+   ───────────────────────────────────────────── */
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Brand */
+  --green: #5d866c;
+  --green-strong: #4a6b56; /* green text on white (passes WCAG AA) */
+  --black: #0a0a0a;
+  --white: #ffffff;
+
+  /* Neutrals */
+  --gray-50: #fafafa;
+  --gray-100: #f4f4f4;
+  --gray-200: #e6e6e6;
+  --gray-500: #6b6b6b;
+
+  /* Semantic tokens (used by shadcn/ui) */
+  --background: var(--white);
+  --foreground: var(--black);
+  --card: var(--white);
+  --card-foreground: var(--black);
+  --popover: var(--white);
+  --popover-foreground: var(--black);
+
+  --primary: var(--green);
+  --primary-foreground: var(--white);
+  --primary-strong: var(--green-strong);
+
+  --secondary: var(--gray-100);
+  --secondary-foreground: var(--black);
+  --muted: var(--gray-100);
+  --muted-foreground: var(--gray-500);
+  --accent: var(--gray-100);
+  --accent-foreground: var(--black);
+  --destructive: #c2410c;
+
+  --border: var(--gray-200);
+  --input: var(--gray-200);
+  --ring: var(--green);
+
+  --radius: 0.625rem;
 }
 
 @theme inline {
+  --font-sans: var(--font-plex-sans);
+  --font-mono: var(--font-plex-mono);
+  --font-heading: var(--font-manrope);
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-strong: var(--primary-strong);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-heading tracking-tight;
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Subheading: small mono label above headings, stat labels, table heads.
+   Set the color separately, e.g. `eyebrow text-primary-strong`. */
+@utility eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }

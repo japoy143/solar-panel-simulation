@@ -1,5 +1,34 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Backend setup (Supabase)
+
+Products, bookings, product photos and the admin login live in [Supabase](https://supabase.com).
+Customers browse as guests; only the single admin account can open `/admin`.
+
+1. **Create a project** at supabase.com (the free tier is fine).
+2. **Add keys:** copy `.env.example` to `.env.local` and fill in the values from
+   *Project Settings → API*. Restart `npm run dev` afterwards.
+3. **Create the tables:** open *SQL Editor*, paste `supabase/migrations/0001_init.sql`, and run it.
+   This creates `products` and `bookings`, the security rules, the `product-images` bucket,
+   and the six starter products.
+4. **Turn off sign-ups:** *Authentication → Sign In / Providers → Email*: disable
+   "Allow new users to sign up". The admin is the only account.
+5. **Create the admin:** *Authentication → Users → Add user* (email + password, auto-confirm). Then
+   run this in the SQL Editor with that email:
+
+   ```sql
+   update auth.users
+   set raw_app_meta_data = raw_app_meta_data || '{"role":"admin"}'::jsonb
+   where email = 'you@example.com';
+   ```
+6. Sign in at `/admin/login`.
+
+How access is enforced:
+- `proxy.ts` redirects non-admins away from `/admin`.
+- Every admin page and Server Action calls `requireAdmin()` (`lib/auth.ts`).
+- Row Level Security in the database is the last line: guests can only read active products and
+  create bookings; only the admin role can change products, read bookings, or upload photos.
+
 ## Getting Started
 
 First, run the development server:
