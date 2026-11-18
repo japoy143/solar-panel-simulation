@@ -1,11 +1,14 @@
 import "server-only";
 import { cacheLife, cacheTag } from "next/cache";
 import type { Product, ProductCategory } from "@/lib/products";
+import { moduleLogger } from "@/lib/server/logger";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { createPublicClient } from "@/lib/supabase/public";
 import { createClient } from "@/lib/supabase/server";
 
 export const PRODUCTS_TAG = "products";
+
+const log = moduleLogger("data.products");
 
 /** Row shape of public.products (see supabase/migrations/0001_init.sql). */
 export type ProductRow = {
@@ -62,9 +65,11 @@ export function toProduct(row: ProductRow): Product {
 export async function getProducts(): Promise<Product[]> {
   "use cache";
   cacheTag(PRODUCTS_TAG);
-  cacheLife("hours");
+  // Refreshes within about a minute, even when rows are edited directly in Supabase
+  // (admin Server Actions refresh it instantly via updateTag).
+  cacheLife("minutes");
   if (!isSupabaseConfigured) {
-    console.warn("[products] Supabase is not configured; showing an empty catalog.");
+    log.warn("Supabase is not configured; serving an empty catalog");
     return [];
   }
   const { data, error } = await createPublicClient()
@@ -73,7 +78,11 @@ export async function getProducts(): Promise<Product[]> {
     .eq("active", true)
     .order("sort_order")
     .order("name");
-  if (error) throw new Error(`Couldn't load products: ${error.message}`);
+  if (error) {
+    log.error({ code: error.code, msg: error.message }, "public catalog query failed");
+    throw new Error(`Couldn't load products: ${error.message}`);
+  }
+  log.debug({ count: data.length }, "public catalog loaded (cache miss)");
   return (data as ProductRow[]).map(toProduct);
 }
 
@@ -81,13 +90,19 @@ export async function getProducts(): Promise<Product[]> {
 export async function getAdminProducts(): Promise<Product[]> {
   const supabase = await createClient();
   const { data, error } = await supabase.from("products").select("*").order("sort_order").order("name");
-  if (error) throw new Error(`Couldn't load products: ${error.message}`);
+  if (error) {
+    log.error({ code: error.code, msg: error.message }, "admin product list query failed");
+    throw new Error(`Couldn't load products: ${error.message}`);
+  }
   return (data as ProductRow[]).map(toProduct);
 }
 
 export async function getAdminProduct(id: string): Promise<Product | null> {
   const supabase = await createClient();
   const { data, error } = await supabase.from("products").select("*").eq("id", id).maybeSingle();
-  if (error) throw new Error(`Couldn't load product: ${error.message}`);
+  if (error) {
+    log.error({ productId: id, code: error.code, msg: error.message }, "admin product query failed");
+    throw new Error(`Couldn't load product: ${error.message}`);
+  }
   return data ? toProduct(data as ProductRow) : null;
 }

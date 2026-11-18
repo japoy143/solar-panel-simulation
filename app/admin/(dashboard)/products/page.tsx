@@ -15,9 +15,14 @@ import {
 } from "@/components/ui/table";
 import { PageHeader } from "@/components/admin/page-header";
 import { ProductRowActions } from "@/components/admin/product-row-actions";
+import { RefreshCatalogButton } from "@/components/admin/refresh-catalog-button";
 import { getAdminProducts } from "@/lib/data/products";
 import { categoryLabels, formatPrice, productImageUrl, productRating } from "@/lib/products";
 import { cn } from "@/lib/utils";
+
+// Admin pages check the session and load live data on every request, so they block on the
+// server by design. Opt out of instant-navigation validation (see docs: instant-navigation#opting-out).
+export const instant = false;
 
 const categoryIcons = { panel: SunIcon, inverter: ZapIcon, battery: BatteryFullIcon } as const;
 
@@ -32,10 +37,13 @@ export default async function AdminProductsPage() {
         title="Products"
         description="Panels, inverters, and batteries offered to customers."
         action={
-          <Link href="/admin/products/new" className={cn(buttonVariants(), "h-9 px-4")}>
-            <PlusIcon data-icon="inline-start" />
-            Add product
-          </Link>
+          <div className="flex gap-2">
+            <RefreshCatalogButton />
+            <Link href="/admin/products/new" className={cn(buttonVariants(), "h-9 px-4")}>
+              <PlusIcon data-icon="inline-start" />
+              Add product
+            </Link>
+          </div>
         }
       />
 

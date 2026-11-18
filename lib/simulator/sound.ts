@@ -9,9 +9,13 @@ let ctx: AudioContext | null = null;
 
 function audio() {
   if (typeof window === "undefined" || !("AudioContext" in window)) return null;
-  ctx ??= new AudioContext();
-  if (ctx.state === "suspended") void ctx.resume();
-  return ctx;
+  try {
+    ctx ??= new AudioContext();
+    if (ctx.state === "suspended") ctx.resume().catch(() => {}); // blocked until a user gesture
+    return ctx;
+  } catch {
+    return null; // audio unavailable (privacy mode, too many contexts…): stay silent
+  }
 }
 
 /**

@@ -1,6 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { moduleLogger } from "@/lib/server/logger";
 import { isSupabaseConfigured, SUPABASE_KEY, SUPABASE_URL } from "@/lib/supabase/env";
+
+const log = moduleLogger("proxy");
 
 const LOGIN = "/admin/login";
 
@@ -29,8 +32,17 @@ export async function proxy(request: NextRequest) {
   });
 
   // getUser() verifies the token with Supabase (unlike getSession(), which trusts the cookie).
-  const { data } = await supabase.auth.getUser();
-  const isAdmin = data.user?.app_metadata?.role === "admin";
+  // If Supabase can't be reached, fail closed: treat the visitor as signed out.
+  let isAdmin = false;
+  try {
+    const { data, error } = await supabase.auth.getUser();
+    if (error && error.name !== "AuthSessionMissingError") {
+      log.warn({ path: pathname, name: error.name, status: error.status, msg: error.message }, "session check failed");
+    }
+    isAdmin = data.user?.app_metadata?.role === "admin";
+  } catch (err) {
+    log.error({ err, path: pathname }, "session check threw; treating visitor as signed out");
+  }
 
   const redirectTo = (path: string) => {
     const res = NextResponse.redirect(new URL(path, request.url));
@@ -38,7 +50,10 @@ export async function proxy(request: NextRequest) {
     return res;
   };
 
-  if (!isAdmin && !onLogin) return redirectTo(LOGIN);
+  if (!isAdmin && !onLogin) {
+    log.debug({ path: pathname }, "redirecting non-admin to login");
+    return redirectTo(LOGIN);
+  }
   if (isAdmin && onLogin) return redirectTo("/admin");
   return response;
 }

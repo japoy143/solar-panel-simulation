@@ -4,6 +4,10 @@ import { PageHeader } from "@/components/admin/page-header";
 import { ProductForm } from "@/components/admin/product-form";
 import { getAdminProduct } from "@/lib/data/products";
 
+// Admin pages check the session and load live data on every request, so they block on the
+// server by design. Opt out of instant-navigation validation (see docs: instant-navigation#opting-out).
+export const instant = false;
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export default async function EditProductPage({ params }: PageProps<"/admin/products/[id]/edit">) {

@@ -1,5 +1,9 @@
 import "server-only";
+import { getBuilding, isBuildingId } from "@/lib/simulator/buildings";
+import { moduleLogger } from "@/lib/server/logger";
 import { createClient } from "@/lib/supabase/server";
+
+const log = moduleLogger("data.bookings");
 
 export const bookingStatuses = ["new", "confirmed", "completed", "cancelled"] as const;
 export type BookingStatus = (typeof bookingStatuses)[number];
@@ -28,13 +32,21 @@ type Row = {
   address: string;
   notes: string | null;
   status: BookingStatus;
-  layout: { summary?: { panels?: number; kwp?: number; batteryKwh?: number } } | null;
+  layout: BookingLayout | null;
 };
 
-function describeLayout(layout: Row["layout"]) {
+/** The simulator layout attached to a booking (see LayoutSummaryField). */
+export type BookingLayout = {
+  building?: string;
+  summary?: { panels?: number; kwp?: number; batteryKwh?: number };
+};
+
+/** "Medium house · 14 panels · 5.7 kWp · 10 kWh battery", or null without a usable layout. */
+export function describeLayout(layout: BookingLayout | null | undefined) {
   const s = layout?.summary;
   if (!s || !s.panels) return null;
-  const parts = [`${s.panels} panels`, `${(s.kwp ?? 0).toFixed(1)} kWp`];
+  const parts = [`${s.panels} panels`, `${(Number(s.kwp) || 0).toFixed(1)} kWp`];
+  if (layout?.building && isBuildingId(layout.building)) parts.unshift(getBuilding(layout.building).name);
   if (s.batteryKwh) parts.push(`${s.batteryKwh} kWh battery`);
   return parts.join(" · ");
 }
@@ -60,7 +72,10 @@ export async function getBookings(limit = 200): Promise<Booking[]> {
     .select("*")
     .order("created_at", { ascending: false })
     .limit(limit);
-  if (error) throw new Error(`Couldn't load bookings: ${error.message}`);
+  if (error) {
+    log.error({ code: error.code, msg: error.message }, "bookings query failed");
+    throw new Error(`Couldn't load bookings: ${error.message}`);
+  }
   return (data as Row[]).map(toBooking);
 }
 
@@ -75,6 +90,10 @@ export async function getDashboardStats() {
     supabase.from("bookings").select("id", count).eq("status", "new"),
     supabase.from("products").select("id", count).eq("active", true),
   ]);
+  // Figures are non-critical: show 0 rather than failing the whole dashboard, but log it.
+  for (const [name, res] of Object.entries({ month, pending, products })) {
+    if (res.error) log.error({ stat: name, code: res.error.code, msg: res.error.message }, "dashboard stat query failed");
+  }
   return {
     bookingsThisMonth: month.count ?? 0,
     pending: pending.count ?? 0,

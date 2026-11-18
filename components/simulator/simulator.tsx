@@ -10,6 +10,7 @@ import { resolvePlacement, type Rotation } from "@/lib/simulator/geometry";
 import { playPowerUp, unlockAudioOnGesture } from "@/lib/simulator/sound";
 import { summarize } from "@/lib/simulator/summary";
 import { currentItems, useSimulator } from "@/lib/simulator/store";
+import { BackupPower } from "./backup-power";
 import { BuildingPicker, Inspector, Palette, SummaryCard } from "./panels";
 import { fillRoofWithToast, removeItemWithUndo } from "./notify";
 import { ghostAt } from "./place";
@@ -218,6 +219,7 @@ export default function Simulator() {
         <p className="mt-2 text-xs text-muted-foreground">
           Drag to orbit · scroll or pinch to zoom · right-drag to pan
         </p>
+        <BackupPower />
       </div>
 
       <aside className="order-3 space-y-4">

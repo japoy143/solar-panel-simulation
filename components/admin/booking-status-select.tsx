@@ -35,9 +35,18 @@ export function BookingStatusSelect({ id, name, status }: { id: string; name: st
         const next = e.target.value as Status;
         startTransition(async () => {
           setOptimistic(next);
-          const result = await updateBookingStatus(id, next);
-          if (result.ok) toast.success(`${name}: ${labels[next].toLowerCase()}`);
-          else toast.error(result.error);
+          try {
+            const result = await updateBookingStatus(id, next);
+            if (result.ok)
+              toast.success(`${name}: ${labels[next].toLowerCase()}`, {
+                description: result.emailed ? "Confirmation email sent to the customer." : undefined,
+              });
+            else toast.error(result.error);
+          } catch (err) {
+            // The optimistic value reverts on its own when the transition ends.
+            console.error("updateBookingStatus failed", err);
+            toast.error("Couldn't reach the server. The status wasn't changed.");
+          }
         });
       }}
       className={cn(

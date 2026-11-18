@@ -22,6 +22,21 @@ Customers browse as guests; only the single admin account can open `/admin`.
    where email = 'you@example.com';
    ```
 6. Sign in at `/admin/login`.
+7. **More products (optional):** run `supabase/migrations/0002_more_products.sql` the same way to add
+   extra panels, hybrid inverters and batteries (and battery output ratings used by the simulator's
+   backup-power estimates).
+
+### Booking emails (Resend)
+
+1. Create an account at [resend.com](https://resend.com) → **API Keys** → create a key.
+2. Add to `.env.local`: `RESEND_API_KEY`, `ADMIN_EMAIL` (where new-booking alerts go) and
+   `NEXT_PUBLIC_SITE_URL`. Restart the dev server.
+3. **Testing:** keep `EMAIL_FROM=Solar Layout <onboarding@resend.dev>`. Resend only delivers this test
+   sender's mail to your own Resend account email, so book with that address to see both emails.
+4. **Going live:** in Resend → **Domains**, add your domain and the DNS records it shows, then set
+   `EMAIL_FROM` to an address on it (e.g. `Solar Layout <bookings@yourdomain.com>`).
+
+Without `RESEND_API_KEY`, bookings still save; the emails are skipped and logged.
 
 How access is enforced:
 - `proxy.ts` redirects non-admins away from `/admin`.

@@ -66,6 +66,8 @@ type FormState = {
   d: string;
   rating: string;
   hybrid: boolean;
+  /** Batteries only: max continuous output (kW). */
+  outputKw: string;
   images: string[];
 };
 
@@ -84,6 +86,7 @@ function initialState(p?: Product): FormState {
       ...defaults.panel,
       rating: "",
       hybrid: false,
+      outputKw: "",
       images: [],
     };
   }
@@ -101,8 +104,9 @@ function initialState(p?: Product): FormState {
     w: String(p.size.w),
     h: String(p.size.h),
     d: String(p.size.d),
-    rating: String(p.watts ?? p.kw ?? p.kwh ?? ""),
+    rating: String((p.category === "panel" ? p.watts : p.category === "inverter" ? p.kw : p.kwh) ?? ""),
     hybrid: Boolean(p.hybrid),
+    outputKw: p.category === "battery" && p.kw != null ? String(p.kw) : "",
     images: p.images,
   };
 }
@@ -152,7 +156,7 @@ export function ProductForm({ product, nextSortOrder = 0 }: { product?: Product;
   useEffect(() => {
     const pendingUploads = unsaved.current;
     return () => {
-      if (pendingUploads.size > 0) void discardUploads([...pendingUploads]);
+      if (pendingUploads.size > 0) discardUploads([...pendingUploads]).catch((err) => console.error("discardUploads failed", err));
     };
   }, []);
 
@@ -188,11 +192,21 @@ export function ProductForm({ product, nextSortOrder = 0 }: { product?: Product;
     const results = await Promise.all(
       accepted.map(async (file) => {
         const path = `products/${crypto.randomUUID()}.${TYPES[file.type]}`;
-        const { error } = await supabase.storage
-          .from(PRODUCT_IMAGES_BUCKET)
-          .upload(path, file, { contentType: file.type, cacheControl: "31536000", upsert: false });
-        setUploading((n) => n - 1);
-        return error ? null : path;
+        try {
+          const { error } = await supabase.storage
+            .from(PRODUCT_IMAGES_BUCKET)
+            .upload(path, file, { contentType: file.type, cacheControl: "31536000", upsert: false });
+          if (error) {
+            console.error(`Upload failed for ${file.name}:`, error.message);
+            return null;
+          }
+          return path;
+        } catch (err) {
+          console.error(`Upload failed for ${file.name}:`, err); // e.g. network drop
+          return null;
+        } finally {
+          setUploading((n) => n - 1);
+        }
       }),
     );
     const ok = results.filter((p): p is string => p !== null);
@@ -205,7 +219,7 @@ export function ProductForm({ product, nextSortOrder = 0 }: { product?: Product;
   function removeImage(path: string) {
     set("images", form.images.filter((p) => p !== path));
     // Brand-new uploads can go right away; saved photos are removed when the product is saved.
-    if (unsaved.current.delete(path)) void discardUploads([path]);
+    if (unsaved.current.delete(path)) discardUploads([path]).catch((err) => console.error("discardUploads failed", err));
   }
 
   function makeCover(path: string) {
@@ -230,7 +244,7 @@ export function ProductForm({ product, nextSortOrder = 0 }: { product?: Product;
       placement: form.placement,
       size: { w: Number(form.w), h: Number(form.h), d: Number(form.d) },
       watts: rating.key === "watts" ? value : null,
-      kw: rating.key === "kw" ? value : null,
+      kw: rating.key === "kw" ? value : form.category === "battery" ? toNumber(form.outputKw) : null,
       kwh: rating.key === "kwh" ? value : null,
       hybrid: form.hybrid,
       images: form.images,
@@ -416,6 +430,24 @@ export function ProductForm({ product, nextSortOrder = 0 }: { product?: Product;
                 />
                 Hybrid (works with batteries)
               </label>
+            ) : form.category === "battery" ? (
+              <div className="grid gap-2">
+                <Label htmlFor="output-kw">Max output (kW)</Label>
+                <Input
+                  id="output-kw"
+                  className="h-10"
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  placeholder="e.g. 5"
+                  value={form.outputKw}
+                  aria-invalid={invalid("kw")}
+                  onChange={(e) => set("outputKw", e.target.value)}
+                />
+                {error("kw") ?? (
+                  <p className="text-xs text-muted-foreground">Used to warn when too much runs at once.</p>
+                )}
+              </div>
             ) : (
               <span />
             )}

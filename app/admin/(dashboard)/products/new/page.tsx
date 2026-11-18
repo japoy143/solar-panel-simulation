@@ -3,6 +3,10 @@ import { requireAdmin } from "@/lib/auth";
 import { ProductForm } from "@/components/admin/product-form";
 import { getAdminProducts } from "@/lib/data/products";
 
+// Admin pages check the session and load live data on every request, so they block on the
+// server by design. Opt out of instant-navigation validation (see docs: instant-navigation#opting-out).
+export const instant = false;
+
 export default async function NewProductPage() {
   await requireAdmin();
   const products = await getAdminProducts();

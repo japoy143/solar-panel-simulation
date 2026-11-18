@@ -14,6 +14,10 @@ import { PageHeader } from "@/components/admin/page-header";
 
 import { getBookings, getDashboardStats } from "@/lib/data/bookings";
 
+// Admin pages check the session and load live data on every request, so they block on the
+// server by design. Opt out of instant-navigation validation (see docs: instant-navigation#opting-out).
+export const instant = false;
+
 const dateFmt = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeZone: "UTC" });
 
 export default async function AdminDashboardPage() {

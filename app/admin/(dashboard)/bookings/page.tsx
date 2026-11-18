@@ -12,6 +12,10 @@ import { BookingStatusSelect } from "@/components/admin/booking-status-select";
 import { PageHeader } from "@/components/admin/page-header";
 import { getBookings } from "@/lib/data/bookings";
 
+// Admin pages check the session and load live data on every request, so they block on the
+// server by design. Opt out of instant-navigation validation (see docs: instant-navigation#opting-out).
+export const instant = false;
+
 const dateFmt = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeZone: "UTC" });
 const dateTimeFmt = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" });
 
