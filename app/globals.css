@@ -121,3 +121,10 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
+
+/* Admin: the notification bell floats bottom-right, where Sonner toasts also appear. Lift the
+   toasts above it. (!important: Sonner sets these variables inline on the toaster.) */
+body:has([data-notification-bell]) [data-sonner-toaster] {
+  --offset-bottom: 5.5rem !important;
+  --mobile-offset-bottom: 5rem !important;
+}

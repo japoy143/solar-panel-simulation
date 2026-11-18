@@ -22,13 +22,12 @@ const dateFmt = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeZone
 
 export default async function AdminDashboardPage() {
   await requireAdmin();
-  const [figures, recent] = await Promise.all([getDashboardStats(), getBookings(5)]);
+  const [figures, recent] = await Promise.all([getDashboardStats(), getBookings({ limit: 5 })]);
   const stats = [
     { label: "Bookings this month", value: String(figures.bookingsThisMonth) },
     { label: "Pending requests", value: String(figures.pending) },
     { label: "Active products", value: String(figures.activeProducts) },
-    // TODO: needs prices on bookings/quotes.
-    { label: "Revenue (MTD)", value: "—" },
+    { label: "Unread messages", value: String(figures.unreadMessages) },
   ];
 
   return (
@@ -75,7 +74,11 @@ export default async function AdminDashboardPage() {
           ) : (
             <ul className="divide-y">
               {recent.map((b) => (
-                <li key={b.id} className="flex items-center justify-between gap-4 py-3 text-sm">
+                <li key={b.id}>
+                  <Link
+                    href={`/admin/bookings/${b.id}`}
+                    className="-mx-2 flex items-center justify-between gap-4 rounded-md px-2 py-3 text-sm hover:bg-muted/60"
+                  >
                   <span className="min-w-0">
                     <span className="block truncate font-medium">{b.name}</span>
                     <span className="block truncate text-xs text-muted-foreground">{b.address}</span>
@@ -84,6 +87,7 @@ export default async function AdminDashboardPage() {
                     <span className="block">{dateFmt.format(new Date(b.preferredDate))}</span>
                     <span className="block text-xs text-muted-foreground capitalize">{b.status}</span>
                   </span>
+                  </Link>
                 </li>
               ))}
             </ul>

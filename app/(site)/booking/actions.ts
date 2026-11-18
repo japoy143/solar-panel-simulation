@@ -2,6 +2,7 @@
 
 import { after } from "next/server";
 import { describeLayout, type BookingLayout } from "@/lib/data/bookings";
+import { getBookingClientId } from "@/lib/data/clients";
 import { sendBookingReceived } from "@/lib/email";
 import { runAction, unexpected } from "@/lib/server/action";
 import { maskEmail } from "@/lib/server/logger";
@@ -70,7 +71,10 @@ export async function createBooking(_prev: BookingState, formData: FormData): Pr
         }
       }
 
+      // Generated here because guests may insert but not read bookings (no insert…select):
+      // the id lets the email step find the client the database trigger linked it to.
       const booking = {
+        id: crypto.randomUUID(),
         name: text("name").slice(0, 200),
         email: text("email").slice(0, 320),
         phone: text("phone").slice(0, 50) || null,
@@ -95,6 +99,7 @@ export async function createBooking(_prev: BookingState, formData: FormData): Pr
       // problem can't turn a saved booking into an error.
       after(async () => {
         try {
+          const clientId = await getBookingClientId(booking.id);
           await sendBookingReceived({
             name: booking.name,
             email: booking.email,
@@ -103,6 +108,8 @@ export async function createBooking(_prev: BookingState, formData: FormData): Pr
             address: booking.address,
             notes: booking.notes,
             layoutSummary: describeLayout(layout as BookingLayout | null),
+            clientId,
+            bookingId: booking.id,
           });
         } catch (err) {
           log.error({ err }, "booking emails failed");

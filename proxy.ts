@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { moduleLogger } from "@/lib/server/logger";
+import { FLASH_COOKIE, type Flash } from "@/lib/flash";
 import { isSupabaseConfigured, SUPABASE_KEY, SUPABASE_URL } from "@/lib/supabase/env";
 
 const log = moduleLogger("proxy");
@@ -52,7 +53,13 @@ export async function proxy(request: NextRequest) {
 
   if (!isAdmin && !onLogin) {
     log.debug({ path: pathname }, "redirecting non-admin to login");
-    return redirectTo(LOGIN);
+    const res = redirectTo(LOGIN);
+    // Had a Supabase session cookie but it's no longer valid: say why they're on the login page.
+    if (request.cookies.getAll().some((c) => c.name.startsWith("sb-") && c.name.includes("auth-token"))) {
+      const flash: Flash = { type: "info", message: "Your session has expired", description: "Please sign in again." };
+      res.cookies.set(FLASH_COOKIE, JSON.stringify(flash), { path: "/", maxAge: 30, sameSite: "lax" });
+    }
+    return res;
   }
   if (isAdmin && onLogin) return redirectTo("/admin");
   return response;

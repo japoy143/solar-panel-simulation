@@ -1,5 +1,6 @@
 "use server";
 
+import { refresh } from "next/cache";
 import { after } from "next/server";
 import { z } from "zod";
 import { requireAdmin } from "@/lib/auth";
@@ -38,13 +39,17 @@ export async function updateBookingStatus(id: string, status: BookingStatus): Pr
         .from("bookings")
         .update({ status })
         .eq("id", id)
-        .select("name, email, phone, preferred_date, address, notes, layout")
+        .select("name, email, phone, preferred_date, address, notes, layout, client_id")
         .single();
       if (error || !row) {
         log.error({ bookingId: id, status, code: error?.code, msg: error?.message }, "booking status update failed");
         return { ok: false, error: `Couldn't update the booking. (Reference: ${ref})` };
       }
       log.info({ bookingId: id, from: before.status, to: status }, "booking status changed");
+      // Re-render the admin pages with the new status. Without this the select's optimistic value
+      // falls back to the stale `status` prop when the transition ends, and the dashboard's
+      // "Pending requests" figure stays out of date in the client router cache.
+      refresh();
 
       // Email the customer only when the booking newly becomes confirmed (not on every re-save).
       const emailed = status === "confirmed" && before.status !== "confirmed";
@@ -59,7 +64,9 @@ export async function updateBookingStatus(id: string, status: BookingStatus): Pr
               address: row.address,
               notes: row.notes,
               layoutSummary: describeLayout(row.layout as BookingLayout | null),
-            });
+              clientId: row.client_id as string | null,
+              bookingId: id,
+            }, supabase);
           } catch (err) {
             log.error({ err, bookingId: id, customer: maskEmail(row.email) }, "confirmation email failed");
           }
@@ -68,5 +75,24 @@ export async function updateBookingStatus(id: string, status: BookingStatus): Pr
       return { ok: true, emailed };
     },
     (ref) => ({ ok: false, error: unexpected(ref) }),
+  );
+}
+
+/** Opening a booking marks it as seen, so it leaves the notification bell. */
+export async function markBookingSeen(id: string): Promise<void> {
+  await runAction(
+    "markBookingSeen",
+    async ({ log }) => {
+      await requireAdmin();
+      if (!z.uuid().safeParse(id).success) return;
+      const supabase = await createClient();
+      const { error } = await supabase
+        .from("bookings")
+        .update({ seen_at: new Date().toISOString() })
+        .eq("id", id)
+        .is("seen_at", null);
+      if (error) log.warn({ bookingId: id, msg: error.message }, "couldn't mark booking seen");
+    },
+    () => undefined,
   );
 }

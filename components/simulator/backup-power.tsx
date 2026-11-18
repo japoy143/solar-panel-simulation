@@ -23,7 +23,7 @@ import {
   WashingMachineIcon,
   type LucideIcon,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import {
   APPLIANCES,
   formatAlone,
@@ -38,6 +38,7 @@ import {
 import { currentItems, useSimulator } from "@/lib/simulator/store";
 import { summarize } from "@/lib/simulator/summary";
 import { cn } from "@/lib/utils";
+import { DisclosureButton, DisclosurePanel } from "./disclosure";
 
 const icons: Record<ApplianceIcon, LucideIcon> = {
   aircon: AirVentIcon,
@@ -58,117 +59,171 @@ const icons: Record<ApplianceIcon, LucideIcon> = {
 
 const PREVIEW_KWH = 10;
 const watts = (w: number) => (w >= 1000 ? `${(w / 1000).toFixed(w % 1000 ? 1 : 0)} kW` : `${w} W`);
+/** Shown as quick figures on the collapsed card. */
+const HIGHLIGHTS: [id: string, short: string][] = [
+  ["fridge", "Fridge"],
+  ["fan", "Fan"],
+  ["lights", "Lights"],
+];
 
 type Tab = "alone" | "together";
 
-/** "How long does the battery last?" — shown under the 3D view. */
+/**
+ * "How long does the battery last?" — compact card under the 3D view. Collapsed, it shows the
+ * runtime for the selected appliances running together; expanded, the per-appliance figures and
+ * the appliance picker.
+ */
 export function BackupPower() {
   const items = useSimulator(currentItems);
+  const scenario = useSimulator((s) => s.backupScenario);
   const summary = useMemo(() => summarize(items), [items]);
-  const [tab, setTab] = useState<Tab>("alone");
-  const tabsId = useId();
+  const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState<Tab>("together");
+  const ids = useId();
 
   const hasBattery = summary.batteryKwh > 0;
   const capacity = hasBattery ? summary.batteryKwh : PREVIEW_KWH;
   const usable = usableKwh(capacity);
   const limitKw = hasBattery ? summary.backupLimitKw : null;
   const recharge = hasBattery ? rechargeHours(usable, summary.kwp) : null;
+  const together = runtimeTogether(scenario, usable, limitKw);
+  const selectedCount = Object.values(scenario).reduce((n, q) => n + (q > 0 ? 1 : 0), 0);
 
   return (
-    <Card className="mt-4">
-      <CardHeader className="gap-3">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="space-y-1">
-            <p className="eyebrow text-primary-strong">Backup power</p>
-            <CardTitle className="text-lg font-semibold">
-              {hasBattery ? "What a full charge runs" : "How long would a battery last?"}
-            </CardTitle>
-            <p className="text-sm text-muted-foreground">
-              {hasBattery ? (
-                <>
-                  <strong className="font-medium text-foreground">{usable.toFixed(1)} kWh usable</strong> of{" "}
-                  {capacity} kWh
-                  {limitKw != null && <> · up to {limitKw} kW at once</>}
-                </>
-              ) : (
-                <>Add a battery to see how long it powers your home. Preview shown for {PREVIEW_KWH} kWh.</>
-              )}
-            </p>
-          </div>
+    <Card className="@container gap-0 py-5">
+      <div className="space-y-4 px-5 pb-4">
+        <div className="flex items-start justify-between gap-2">
+          <p className="eyebrow flex items-center gap-1.5 text-primary-strong">
+            <BatteryChargingIcon className="size-3.5" />
+            Backup power
+          </p>
           {recharge != null && (
-            <p className="flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs text-primary-strong">
-              <SunIcon className="size-3.5" />
-              Refills in ~{formatDuration(recharge)} of good sun
+            <p className="flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-xs text-primary-strong">
+              <SunIcon className="size-3" />
+              Refills in ~{formatDuration(recharge)}
             </p>
           )}
         </div>
 
-        <div role="tablist" aria-label="Backup estimate" className="flex w-fit rounded-lg bg-muted p-1 text-sm">
-          {(
-            [
-              ["alone", "One at a time"],
-              ["together", "Together"],
-            ] as const
-          ).map(([value, label]) => (
-            <button
-              key={value}
-              type="button"
-              role="tab"
-              id={`${tabsId}-${value}`}
-              aria-selected={tab === value}
-              aria-controls={`${tabsId}-${value}-panel`}
-              onClick={() => setTab(value)}
-              className={cn(
-                "rounded-md px-3 py-1.5 font-medium transition-colors",
-                tab === value ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {label}
-            </button>
-          ))}
+        <div className={cn(!hasBattery && "opacity-60")}>
+          {together.totalW > 0 ? (
+            <>
+              <p className="font-heading text-4xl font-semibold text-primary-strong tabular-nums">
+                ~{formatDuration(together.hours)}
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                running your {selectedCount} selected appliance{selectedCount === 1 ? "" : "s"} together
+              </p>
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground">Pick the appliances you&apos;d run in an outage.</p>
+          )}
+          {together.overLimit && (
+            <p className="mt-1 text-xs font-medium text-destructive">
+              Peak {watts(together.peakW)} is over the {limitKw} kW the system can deliver.
+            </p>
+          )}
         </div>
-      </CardHeader>
 
-      <CardContent
-        id={`${tabsId}-${tab}-panel`}
-        role="tabpanel"
-        aria-labelledby={`${tabsId}-${tab}`}
-        className={cn("space-y-4", !hasBattery && "opacity-60")}
-      >
-        {tab === "alone" ? (
-          <AloneGrid usable={usable} limitKw={limitKw} />
-        ) : (
-          <Together usable={usable} limitKw={limitKw} />
-        )}
-        <Footnote />
-      </CardContent>
+        <p className="text-sm text-muted-foreground">
+          {hasBattery ? (
+            <>
+              <strong className="font-medium text-foreground">{usable.toFixed(1)} kWh usable</strong> of {capacity} kWh
+              {limitKw != null && <> · up to {limitKw} kW at once</>}
+            </>
+          ) : (
+            <>No battery yet: preview for a {PREVIEW_KWH} kWh battery.</>
+          )}
+        </p>
+
+        <ul className={cn("grid grid-cols-3 gap-2", !hasBattery && "opacity-60")}>
+          {HIGHLIGHTS.map(([id, short]) => {
+            const a = APPLIANCES.find((x) => x.id === id);
+            if (!a) return null;
+            const Icon = icons[a.icon];
+            return (
+              <li key={id} className="rounded-lg bg-muted/60 px-3 py-2.5" title={`${a.name} alone`}>
+                <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Icon className="size-3 shrink-0" />
+                  <span className="truncate">{short}</span>
+                </span>
+                <span className="mt-0.5 block text-base font-semibold tabular-nums">{formatAlone(a, usable)}</span>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+
+      <DisclosurePanel id={`${ids}-panel`} open={open}>
+        <div className="space-y-4 border-t px-5 py-5">
+          <div role="tablist" aria-label="Backup estimate" className="flex w-full rounded-lg bg-muted p-1 text-sm">
+            {(
+              [
+                ["together", "Together"],
+                ["alone", "One at a time"],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                role="tab"
+                id={`${ids}-${value}`}
+                aria-selected={tab === value}
+                aria-controls={`${ids}-${value}-panel`}
+                onClick={() => setTab(value)}
+                className={cn(
+                  "flex-1 rounded-md px-2 py-2 font-medium transition-colors",
+                  tab === value ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <div
+            id={`${ids}-${tab}-panel`}
+            role="tabpanel"
+            aria-labelledby={`${ids}-${tab}`}
+            className={cn(!hasBattery && "opacity-60")}
+          >
+            {tab === "alone" ? (
+              <AloneList usable={usable} limitKw={limitKw} />
+            ) : (
+              <Together usable={usable} limitKw={limitKw} />
+            )}
+          </div>
+          <Footnote />
+        </div>
+      </DisclosurePanel>
+
+      <div className="px-3 pt-2">
+        <DisclosureButton
+          open={open}
+          onToggle={() => setOpen((o) => !o)}
+          controls={`${ids}-panel`}
+          openLabel="Hide details"
+          closedLabel="Choose appliances & see each one"
+        />
+      </div>
     </Card>
   );
 }
 
-function AloneGrid({ usable, limitKw }: { usable: number; limitKw: number | null }) {
+function AloneList({ usable, limitKw }: { usable: number; limitKw: number | null }) {
   return (
-    <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">
+    <ul className="-mr-2 grid max-h-96 gap-x-3 overflow-y-auto overscroll-contain pr-2 @sm:grid-cols-2">
       {APPLIANCES.map((a) => {
         const Icon = icons[a.icon];
         const tooPowerful = limitKw != null && a.peakW > limitKw * 1000;
         return (
-          <li key={a.id} className="flex flex-col gap-2 rounded-lg border p-3" title={a.detail}>
-            <div className="flex items-center gap-2">
-              <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
-                <Icon className="size-4" />
-              </span>
-              <span className="min-w-0">
-                <span className="block truncate text-sm font-medium">{a.name}</span>
-                <span className="block font-mono text-[11px] text-muted-foreground">~{watts(a.avgW)}</span>
-              </span>
-            </div>
+          <li key={a.id} className="flex items-center gap-2 border-b py-2.5 text-sm last:border-b-0" title={a.detail}>
+            <Icon className="size-3.5 shrink-0 text-primary" />
+            <span className="min-w-0 flex-1 truncate">{a.name}</span>
             {tooPowerful ? (
-              <p className="text-xs font-medium text-destructive">Needs more than {limitKw} kW</p>
+              <span className="shrink-0 text-xs font-medium text-destructive">&gt; {limitKw} kW</span>
             ) : (
-              <p className="font-heading text-xl font-semibold tabular-nums text-primary-strong">
-                {formatAlone(a, usable)}
-              </p>
+              <span className="shrink-0 font-medium text-primary-strong tabular-nums">{formatAlone(a, usable)}</span>
             )}
           </li>
         );
@@ -184,8 +239,38 @@ function Together({ usable, limitKw }: { usable: number; limitKw: number | null 
   const loadPct = limitKw ? Math.min(100, (result.peakW / (limitKw * 1000)) * 100) : null;
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
-      <ul className="grid gap-1.5 sm:grid-cols-2">
+    <div className="space-y-4">
+      {result.totalW > 0 && (
+        <div className="space-y-2" aria-live="polite">
+          <dl className="flex justify-between text-sm">
+            <div>
+              <dt className="inline text-muted-foreground">Average </dt>
+              <dd className="inline font-mono tabular-nums">{watts(result.totalW)}</dd>
+            </div>
+            <div>
+              <dt className="inline text-muted-foreground">Peak </dt>
+              <dd className="inline font-mono tabular-nums">{watts(result.peakW)}</dd>
+            </div>
+          </dl>
+          {loadPct != null && (
+            <>
+              <div className="h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden>
+                <div
+                  className={cn("h-full rounded-full", result.overLimit ? "bg-destructive" : "bg-primary")}
+                  style={{ width: `${loadPct}%` }}
+                />
+              </div>
+              <p className={cn("text-xs", result.overLimit ? "text-destructive" : "text-muted-foreground")}>
+                {result.overLimit
+                  ? "Too much at once. Turn something off or add a bigger battery/inverter."
+                  : `${Math.round(loadPct)}% of the ${limitKw} kW the system can deliver`}
+              </p>
+            </>
+          )}
+        </div>
+      )}
+
+      <ul className="-mr-2 grid max-h-96 gap-1.5 overflow-y-auto overscroll-contain pr-2 @md:grid-cols-2">
         {APPLIANCES.map((a) => {
           const Icon = icons[a.icon];
           const qty = scenario[a.id] ?? 0;
@@ -194,28 +279,26 @@ function Together({ usable, limitKw }: { usable: number; limitKw: number | null 
             <li
               key={a.id}
               className={cn(
-                "flex items-center gap-2 rounded-lg border p-2 transition-colors",
+                "flex items-center gap-2 rounded-lg border px-3 py-2.5 transition-colors",
                 on && "border-primary/40 bg-primary/5",
               )}
             >
               <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2">
                 <input
                   type="checkbox"
-                  className="size-4 shrink-0 accent-primary"
+                  className="size-3.5 shrink-0 accent-primary"
                   checked={on}
                   onChange={(e) => setQty(a.id, e.target.checked ? 1 : 0)}
                 />
-                <Icon className={cn("size-4 shrink-0", on ? "text-primary" : "text-muted-foreground")} />
-                <span className="min-w-0">
-                  <span className="block truncate text-sm">{a.name}</span>
-                  <span className="block font-mono text-[11px] text-muted-foreground">{watts(a.avgW)} each</span>
-                </span>
+                <Icon className={cn("size-3.5 shrink-0", on ? "text-primary" : "text-muted-foreground")} />
+                <span className="min-w-0 truncate text-sm">{a.name}</span>
+                <span className="ml-auto shrink-0 font-mono text-[11px] text-muted-foreground">{watts(a.avgW)}</span>
               </label>
               {on && (
-                <div className="flex items-center gap-1" aria-label={`${a.name} quantity`}>
+                <div className="flex items-center gap-0.5" aria-label={`${a.name} quantity`}>
                   <button
                     type="button"
-                    className="flex size-6 items-center justify-center rounded-md border hover:bg-muted"
+                    className="flex size-5 items-center justify-center rounded border hover:bg-muted"
                     aria-label={`Fewer ${a.name}`}
                     onClick={() => setQty(a.id, qty - 1)}
                   >
@@ -224,7 +307,7 @@ function Together({ usable, limitKw }: { usable: number; limitKw: number | null 
                   <span className="w-4 text-center font-mono text-xs tabular-nums">{qty}</span>
                   <button
                     type="button"
-                    className="flex size-6 items-center justify-center rounded-md border hover:bg-muted disabled:opacity-40"
+                    className="flex size-5 items-center justify-center rounded border hover:bg-muted disabled:opacity-40"
                     aria-label={`More ${a.name}`}
                     disabled={qty >= 9}
                     onClick={() => setQty(a.id, qty + 1)}
@@ -237,56 +320,6 @@ function Together({ usable, limitKw }: { usable: number; limitKw: number | null 
           );
         })}
       </ul>
-
-      <div
-        className={cn(
-          "flex flex-col gap-3 self-start rounded-xl border p-4 lg:sticky lg:top-4",
-          result.overLimit ? "border-destructive/40 bg-destructive/5" : "bg-muted/40",
-        )}
-        aria-live="polite"
-      >
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <BatteryChargingIcon className="size-4 text-primary" />
-          Running together
-        </div>
-        {result.totalW === 0 ? (
-          <p className="text-sm text-muted-foreground">Tick the appliances you&apos;d run at the same time.</p>
-        ) : (
-          <>
-            <div>
-              <p className="eyebrow text-muted-foreground">Lasts about</p>
-              <p className="font-heading text-3xl font-semibold tabular-nums text-primary-strong">
-                {formatDuration(result.hours)}
-              </p>
-            </div>
-            <dl className="grid grid-cols-2 gap-2 text-sm">
-              <div>
-                <dt className="text-xs text-muted-foreground">Average load</dt>
-                <dd className="font-mono tabular-nums">{watts(result.totalW)}</dd>
-              </div>
-              <div>
-                <dt className="text-xs text-muted-foreground">Peak load</dt>
-                <dd className="font-mono tabular-nums">{watts(result.peakW)}</dd>
-              </div>
-            </dl>
-            {loadPct != null && (
-              <div className="space-y-1">
-                <div className="h-2 overflow-hidden rounded-full bg-background ring-1 ring-foreground/10">
-                  <div
-                    className={cn("h-full rounded-full", result.overLimit ? "bg-destructive" : "bg-primary")}
-                    style={{ width: `${loadPct}%` }}
-                  />
-                </div>
-                <p className={cn("text-xs", result.overLimit ? "text-destructive" : "text-muted-foreground")}>
-                  {result.overLimit
-                    ? `Too much at once: peak ${watts(result.peakW)} is over the ${limitKw} kW limit. Turn something off or add a bigger battery/inverter.`
-                    : `${Math.round(loadPct)}% of the ${limitKw} kW the system can deliver`}
-                </p>
-              </div>
-            )}
-          </>
-        )}
-      </div>
     </div>
   );
 }
@@ -296,7 +329,7 @@ function Footnote() {
     <details className="group text-xs text-muted-foreground">
       <summary className="flex cursor-pointer list-none items-center gap-1 [&::-webkit-details-marker]:hidden">
         <ChevronDownIcon className="size-3.5 transition-transform group-open:rotate-180" />
-        Estimates for a full battery with no solar input (e.g. at night or in an outage). How we calculate this
+        Full battery, no solar input (night or outage). How we calculate this
       </summary>
       <div className="mt-2 space-y-2 pl-4.5">
         <p>

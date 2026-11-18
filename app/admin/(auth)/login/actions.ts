@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { isAdminUser } from "@/lib/auth";
 import { runAction, unexpected } from "@/lib/server/action";
+import { setFlash } from "@/lib/server/flash";
 import { maskEmail } from "@/lib/server/logger";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
@@ -42,20 +43,33 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
     (ref) => fail(unexpected(ref)),
   );
   // redirect() outside the wrapper: it works by throwing and must not be treated as a failure.
-  if (ok === null) redirect("/admin");
+  if (ok === null) {
+    await setFlash({ type: "success", message: "Signed in", description: "Welcome back." });
+    redirect("/admin");
+  }
   return ok;
 }
 
 export async function logout() {
-  await runAction(
+  const ok = await runAction(
     "logout",
     async ({ log }) => {
       const supabase = await createClient();
       const { error } = await supabase.auth.signOut();
-      if (error) log.warn({ code: error.code, msg: error.message }, "sign-out reported an error");
-      else log.info("admin signed out");
+      if (error) {
+        log.warn({ code: error.code, msg: error.message }, "sign-out reported an error");
+        return false;
+      }
+      log.info("admin signed out");
+      return true;
     },
-    () => undefined, // still send them to the login page
+    () => false, // still send them to the login page
+  );
+  await setFlash(
+    ok
+      ? { type: "success", message: "Signed out", description: "See you next time." }
+      : // The session cookie is cleared either way, but say so if Supabase reported a problem.
+        { type: "info", message: "Signed out on this device", description: "The server couldn't confirm it. Sign in again if anything looks off." },
   );
   redirect("/admin/login");
 }

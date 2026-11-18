@@ -12,6 +12,7 @@ import { summarize } from "@/lib/simulator/summary";
 import { currentItems, useSimulator } from "@/lib/simulator/store";
 import { BackupPower } from "./backup-power";
 import { BuildingPicker, Inspector, Palette, SummaryCard } from "./panels";
+import { Savings } from "./savings";
 import { fillRoofWithToast, removeItemWithUndo } from "./notify";
 import { ghostAt } from "./place";
 import { Scene, type SceneHandle } from "./scene";
@@ -219,7 +220,11 @@ export default function Simulator() {
         <p className="mt-2 text-xs text-muted-foreground">
           Drag to orbit · scroll or pinch to zoom · right-drag to pan
         </p>
-        <BackupPower />
+        {/* Side by side under the 3D view; stacked on narrow screens. */}
+        <div className="mt-4 grid items-start gap-4 md:grid-cols-2">
+          <BackupPower />
+          <Savings />
+        </div>
       </div>
 
       <aside className="order-3 space-y-4">

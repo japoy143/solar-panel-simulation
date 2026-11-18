@@ -25,6 +25,12 @@ Customers browse as guests; only the single admin account can open `/admin`.
 7. **More products (optional):** run `supabase/migrations/0002_more_products.sql` the same way to add
    extra panels, hybrid inverters and batteries (and battery output ratings used by the simulator's
    backup-power estimates).
+8. **Clients & messages:** run `supabase/migrations/0003_clients_messages.sql`. It adds `clients`
+   (one per email address, created automatically for every new booking and backfilled from existing
+   ones), the `messages` conversation log, and the notification fields. Then add the
+   **service role key** (*Project Settings → API → `service_role`/secret key*) to `.env.local` as
+   `SUPABASE_SERVICE_ROLE_KEY`. It bypasses Row Level Security, so keep it server-side only: it's
+   used solely to record the automatic booking emails and by the Resend webhook.
 
 ### Booking emails (Resend)
 
@@ -38,11 +44,34 @@ Customers browse as guests; only the single admin account can open `/admin`.
 
 Without `RESEND_API_KEY`, bookings still save; the emails are skipped and logged.
 
+### Client conversations (two-way email)
+
+Each client has a conversation at `/admin/clients/[id]`. Emails you send there, the automatic
+booking emails, and the client's replies all appear in one thread. The bell in the admin sidebar
+shows unread replies, unopened bookings and failed emails.
+
+Sending works as soon as `RESEND_API_KEY` is set. For **replies to come back into the thread**:
+
+1. Resend → **Domains**: add a receiving (sub)domain, e.g. `inbound.yourdomain.com`, enable
+   receiving and add the MX record it shows. Set `INBOUND_DOMAIN=inbound.yourdomain.com`.
+   Client emails then use `reply+<clientId>@inbound.yourdomain.com` as Reply-To, so each reply
+   lands in the right thread.
+2. Resend → **Webhooks**: add `https://<your-site>/api/webhooks/resend` with the events
+   `email.received`, `email.delivered`, `email.bounced`, `email.failed` and `email.suppressed`.
+   Copy its signing secret into `RESEND_WEBHOOK_SECRET`. Requests without a valid signature are
+   rejected.
+3. Local testing: expose the dev server with a tunnel (e.g. `ngrok http 3000`) and use that URL for
+   the webhook.
+
+Until receiving is set up, replies go to `ADMIN_EMAIL` as before. Replies from addresses that
+don't belong to a client are ignored (and logged), so spam doesn't create clients.
+
 How access is enforced:
 - `proxy.ts` redirects non-admins away from `/admin`.
 - Every admin page and Server Action calls `requireAdmin()` (`lib/auth.ts`).
 - Row Level Security in the database is the last line: guests can only read active products and
   create bookings; only the admin role can change products, read bookings, or upload photos.
+  Clients and messages are admin-only too; a database trigger links each new booking to its client.
 
 ## Getting Started
 
