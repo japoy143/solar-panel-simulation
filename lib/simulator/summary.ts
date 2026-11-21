@@ -13,6 +13,10 @@ export type LayoutSummary = {
   yearlyKwh: number;
   inverterKw: number;
   batteryKwh: number;
+  /** Sum of the batteries' max continuous output (kW); null if a battery has no rating. */
+  batteryOutputKw: number | null;
+  /** Most power the backup system can deliver at once: the smaller of battery and hybrid inverter output. */
+  backupLimitKw: number | null;
   products: { slug: string; name: string; count: number }[];
   warnings: string[];
   /** Fully assembled: panels feeding an inverter, and any batteries on a hybrid inverter. */
@@ -25,6 +29,8 @@ export function summarize(items: PlacedItem[]): LayoutSummary {
   let inverterKw = 0;
   let batteryKwh = 0;
   let hasHybrid = false;
+  let hybridKw = 0;
+  let batteryOutputKw: number | null = 0;
   const counts = new Map<string, number>();
 
   for (const item of items) {
@@ -37,12 +43,17 @@ export function summarize(items: PlacedItem[]): LayoutSummary {
     } else if (p.category === "inverter") {
       inverterKw += p.kw ?? 0;
       hasHybrid ||= Boolean(p.hybrid);
+      if (p.hybrid) hybridKw += p.kw ?? 0;
     } else if (p.category === "battery") {
       batteryKwh += p.kwh ?? 0;
+      batteryOutputKw = batteryOutputKw == null || p.kw == null ? null : batteryOutputKw + p.kw;
     }
   }
 
   const kwp = watts / 1000;
+  if (batteryKwh === 0) batteryOutputKw = null;
+  const limits = [batteryOutputKw, hybridKw > 0 ? hybridKw : null].filter((v): v is number => v != null);
+  const backupLimitKw = limits.length > 0 ? Math.min(...limits) : null;
   const warnings: string[] = [];
   if (panels > 0 && inverterKw === 0) warnings.push("Add an inverter to convert the panels' power.");
   if (inverterKw > 0 && kwp > inverterKw * 1.3)
@@ -55,6 +66,8 @@ export function summarize(items: PlacedItem[]): LayoutSummary {
     yearlyKwh: Math.round(kwp * YIELD_KWH_PER_KWP),
     inverterKw,
     batteryKwh,
+    batteryOutputKw,
+    backupLimitKw,
     products: [...counts].map(([slug, count]) => ({
       slug,
       name: getProduct(slug)?.name ?? slug,

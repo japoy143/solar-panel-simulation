@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { requireAdmin } from "@/lib/auth";
 import {
@@ -8,16 +10,32 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ClickableRow } from "@/components/admin/clickable-row";
+import { ListFilters, ListFiltersFallback } from "@/components/admin/list-filters";
 import { BookingStatusSelect } from "@/components/admin/booking-status-select";
 import { PageHeader } from "@/components/admin/page-header";
-import { getBookings } from "@/lib/data/bookings";
+import { bookingStatusLabels, bookingStatusList } from "@/lib/clients";
+import { bookingStatuses, getBookings, type BookingStatus } from "@/lib/data/bookings";
+import { param } from "@/lib/data/search";
+
+// Admin pages check the session and load live data on every request, so they block on the
+// server by design. Opt out of instant-navigation validation (see docs: instant-navigation#opting-out).
+export const instant = false;
 
 const dateFmt = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeZone: "UTC" });
 const dateTimeFmt = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" });
 
-export default async function AdminBookingsPage() {
+const filterOptions = bookingStatusList.map((s) => ({ value: s, label: bookingStatusLabels[s] }));
+const PLACEHOLDER = "Search name, email, phone or address";
+
+export default async function AdminBookingsPage({ searchParams }: PageProps<"/admin/bookings">) {
   await requireAdmin();
-  const bookings = await getBookings();
+  const sp = await searchParams;
+  const q = param(sp.q);
+  const rawStatus = param(sp.status);
+  const status = bookingStatuses.includes(rawStatus as BookingStatus) ? (rawStatus as BookingStatus) : undefined;
+  const bookings = await getBookings({ q, status });
+  const filtered = Boolean(q || status);
 
   return (
     <>
@@ -26,6 +44,10 @@ export default async function AdminBookingsPage() {
         title="Bookings"
         description="Site assessment requests submitted from the booking page."
       />
+
+      <Suspense fallback={<ListFiltersFallback placeholder={PLACEHOLDER} statuses={filterOptions} />}>
+        <ListFilters placeholder={PLACEHOLDER} statuses={filterOptions} />
+      </Suspense>
 
       <Card className="py-0">
         <Table>
@@ -42,14 +64,23 @@ export default async function AdminBookingsPage() {
             {bookings.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={5} className="h-32 text-center text-muted-foreground">
-                  No bookings yet.
+                  {filtered ? "No bookings match your search." : "No bookings yet."}
                 </TableCell>
               </TableRow>
             ) : (
               bookings.map((b) => (
-                <TableRow key={b.id} className="align-top">
+                <ClickableRow key={b.id} href={`/admin/bookings/${b.id}`} className="align-top">
                   <TableCell className="pl-4">
-                    <p className="font-medium">{b.name}</p>
+                    <span className="flex items-center gap-2">
+                      {b.status === "new" && !b.seenAt && (
+                        <span className="size-2 shrink-0 rounded-full bg-primary" title="Not opened yet">
+                          <span className="sr-only">Not opened yet: </span>
+                        </span>
+                      )}
+                      <Link href={`/admin/bookings/${b.id}`} className="font-medium hover:underline">
+                        {b.name}
+                      </Link>
+                    </span>
                     <a href={`mailto:${b.email}`} className="block text-xs text-primary-strong hover:underline">
                       {b.email}
                     </a>
@@ -65,7 +96,7 @@ export default async function AdminBookingsPage() {
                   <TableCell className="pr-4 text-right">
                     <BookingStatusSelect id={b.id} name={b.name} status={b.status} />
                   </TableCell>
-                </TableRow>
+                </ClickableRow>
               ))
             )}
           </TableBody>

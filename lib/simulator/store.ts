@@ -3,6 +3,7 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import { getProduct } from "@/lib/catalog";
 import { getBuilding, type BuildingId } from "./buildings";
 import { autoFill, type PlacedItem, type Rotation } from "./geometry";
+import { DEFAULT_SCENARIO } from "./appliances";
 import { playFill, playPlace } from "./sound";
 
 export type Ghost = {
@@ -23,6 +24,10 @@ type SimulatorState = {
   ghost: Ghost | null;
   /** Sound effects when placing products. */
   muted: boolean;
+  /** Backup-power "Together" selection: appliance id → quantity. */
+  backupScenario: Record<string, number>;
+  /** Bill-savings inputs; null until the visitor changes one (the detected country's preset applies). */
+  savings: SavingsSettings | null;
 
   setBuilding: (id: BuildingId) => void;
   addItem: (item: Omit<PlacedItem, "id">) => void;
@@ -38,6 +43,20 @@ type SimulatorState = {
   setPending: (slug: string | null) => void;
   setGhost: (ghost: Ghost | null) => void;
   toggleMuted: () => void;
+  setApplianceQty: (id: string, qty: number) => void;
+  setSavings: (settings: SavingsSettings) => void;
+};
+
+export type SavingsSettings = {
+  /** ISO country code of the preset in use, or "custom" once the price/currency is typed in. */
+  country: string;
+  currency: string;
+  /** Price per kWh in `currency`. */
+  price: number;
+  /** Household use per month (kWh). */
+  usageKwh: number;
+  /** Credit per exported kWh. */
+  exportRate: number;
 };
 
 const makeId = () => Math.random().toString(36).slice(2, 10);
@@ -57,6 +76,8 @@ export const useSimulator = create<SimulatorState>()(
         pendingSlug: null,
         ghost: null,
         muted: false,
+        backupScenario: DEFAULT_SCENARIO,
+        savings: null,
 
         setBuilding: (buildingId) => set({ buildingId, selectedId: null, ghost: null }),
         addItem: (item) => {
@@ -103,12 +124,26 @@ export const useSimulator = create<SimulatorState>()(
         setPending: (pendingSlug) => set({ pendingSlug, ghost: null }),
         setGhost: (ghost) => set({ ghost }),
         toggleMuted: () => set((s) => ({ muted: !s.muted })),
+        setSavings: (savings) => set({ savings }),
+        setApplianceQty: (id, qty) =>
+          set((s) => {
+            const next = { ...s.backupScenario };
+            if (qty > 0) next[id] = Math.min(qty, 9);
+            else delete next[id];
+            return { backupScenario: next };
+          }),
       };
     },
     {
       name: "solar-layout:v1",
       storage: createJSONStorage(() => localStorage),
-      partialize: (s) => ({ buildingId: s.buildingId, layouts: s.layouts, muted: s.muted }),
+      partialize: (s) => ({
+        buildingId: s.buildingId,
+        layouts: s.layouts,
+        muted: s.muted,
+        backupScenario: s.backupScenario,
+        savings: s.savings,
+      }),
       // Rehydrate manually after mount so server and first client render match.
       skipHydration: true,
     },

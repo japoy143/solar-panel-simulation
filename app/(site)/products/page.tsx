@@ -4,25 +4,69 @@ import { ArrowRightIcon } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { ProductCard } from "@/components/site/product-card";
 import { getProducts } from "@/lib/data/products";
-import { categoryLabels, productCategories } from "@/lib/products";
+import { categoryLabels, productCategories, productImageUrl, type Product } from "@/lib/products";
 import { cn } from "@/lib/utils";
+import { JsonLd } from "@/components/seo/json-ld";
+import { absoluteUrl, organizationJsonLd, pageMetadata } from "@/lib/site";
 
-export const metadata: Metadata = {
-  title: "Products · Solar Layout Simulator",
-};
+export const metadata: Metadata = pageMetadata({
+  title: "Solar Panels, Inverters & Home Batteries",
+  description:
+    "Monocrystalline solar panels, hybrid and string inverters, and home battery storage we size to your roof and energy use. Try them in the free 3D layout planner.",
+  path: "/products",
+});
+
+function productsJsonLd(products: Product[]) {
+  return {
+    "@type": "ItemList",
+    name: "Solar panels, inverters & batteries",
+    url: absoluteUrl("/products"),
+    numberOfItems: products.length,
+    itemListElement: products.map((p, i) => ({
+      "@type": "ListItem",
+      position: i + 1,
+      item: {
+        "@type": "Product",
+        name: p.name,
+        description: p.summary || undefined,
+        category: categoryLabels[p.category],
+        sku: p.slug,
+        url: absoluteUrl(`/products#${p.category}`),
+        image: p.images.length ? p.images.map(productImageUrl) : undefined,
+        brand: { "@id": organizationJsonLd["@id"] },
+        additionalProperty: p.specs.map((s) => ({
+          "@type": "PropertyValue",
+          name: s.label,
+          value: s.value,
+        })),
+        offers:
+          p.priceCents == null
+            ? undefined
+            : {
+                "@type": "Offer",
+                price: (p.priceCents / 100).toFixed(2),
+                priceCurrency: "USD",
+                availability: "https://schema.org/InStock",
+              },
+      },
+    })),
+  };
+}
 
 export default async function ProductsPage() {
   const products = await getProducts();
   const categories = productCategories.filter((c) => products.some((p) => p.category === c));
   return (
     <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 md:py-24">
+      {products.length > 0 && <JsonLd data={productsJsonLd(products)} />}
       <div className="max-w-2xl space-y-4">
         <p className="eyebrow text-primary-strong">Products</p>
         <h1 className="text-4xl font-semibold text-balance sm:text-5xl">
-          Equipment we install
+          Solar panels, inverters &amp; batteries
         </h1>
         <p className="text-lg text-muted-foreground">
-          Panels, inverters, and batteries we size to your roof and energy use.
+          Monocrystalline solar panels, hybrid inverters, and home battery storage we size to
+          your roof and energy use.
         </p>
       </div>
 

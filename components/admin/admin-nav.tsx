@@ -1,15 +1,18 @@
 "use client";
 
 import { Suspense } from "react";
+import { useFormStatus } from "react-dom";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   CalendarCheckIcon,
   ExternalLinkIcon,
   LayoutDashboardIcon,
+  Loader2Icon,
   LogOutIcon,
   MenuIcon,
   PackageIcon,
+  UsersIcon,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,6 +32,7 @@ const links = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboardIcon },
   { href: "/admin/products", label: "Products", icon: PackageIcon },
   { href: "/admin/bookings", label: "Bookings", icon: CalendarCheckIcon },
+  { href: "/admin/clients", label: "Clients", icon: UsersIcon },
 ];
 
 const itemClass =
@@ -89,14 +93,22 @@ function NavList({ onNavigate }: { onNavigate?: boolean }) {
         </li>
         <li>
           <form action={logout}>
-            <button type="submit" className={cn(itemClass, "w-full")}>
-              <LogOutIcon />
-              Sign out
-            </button>
+            <SignOutButton />
           </form>
         </li>
       </ul>
     </div>
+  );
+}
+
+/** Shows progress while the sign-out action runs; the "Signed out" toast follows the redirect. */
+function SignOutButton() {
+  const { pending } = useFormStatus();
+  return (
+    <button type="submit" disabled={pending} className={cn(itemClass, "w-full disabled:opacity-60")}>
+      {pending ? <Loader2Icon className="animate-spin" /> : <LogOutIcon />}
+      {pending ? "Signing out…" : "Sign out"}
+    </button>
   );
 }
 

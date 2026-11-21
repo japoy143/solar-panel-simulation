@@ -17,10 +17,15 @@ export function ProductRowActions({ id, name, active }: { id: string; name: stri
 
   const toggle = () =>
     startTransition(async () => {
-      const result = await setProductActive(id, !active);
-      if (!result.ok) return void toast.error(result.error);
-      toast.success(active ? `${name} hidden from the site` : `${name} is live on the site`);
-      router.refresh();
+      try {
+        const result = await setProductActive(id, !active);
+        if (!result.ok) return void toast.error(result.error);
+        toast.success(active ? `${name} hidden from the site` : `${name} is live on the site`);
+        router.refresh();
+      } catch (err) {
+        console.error("setProductActive failed", err);
+        toast.error("Couldn't reach the server. Check your connection and try again.");
+      }
     });
 
   const remove = async () => {
@@ -33,10 +38,15 @@ export function ProductRowActions({ id, name, active }: { id: string; name: stri
     });
     if (!ok) return;
     startTransition(async () => {
-      const result = await deleteProduct(id);
-      if (!result.ok) return void toast.error(result.error);
-      toast.success(`${name} deleted`);
-      router.refresh();
+      try {
+        const result = await deleteProduct(id);
+        if (!result.ok) return void toast.error(result.error);
+        toast.success(`${name} deleted`);
+        router.refresh();
+      } catch (err) {
+        console.error("deleteProduct failed", err);
+        toast.error("Couldn't reach the server. Check your connection and try again.");
+      }
     });
   };
 
