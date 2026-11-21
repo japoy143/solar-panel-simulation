@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import {
   ArrowRightIcon,
@@ -14,7 +15,36 @@ import { getProducts } from "@/lib/data/products";
 import { buildings } from "@/lib/simulator/buildings";
 import { buildingIcons } from "@/components/simulator/building-icons";
 import { cn } from "@/lib/utils";
+import { JsonLd } from "@/components/seo/json-ld";
+import {
+  absoluteUrl,
+  organizationJsonLd,
+  pageMetadata,
+  siteConfig,
+  webApplicationJsonLd,
+} from "@/lib/site";
 
+export const metadata: Metadata = pageMetadata({
+  title: `${siteConfig.tagline} | ${siteConfig.name}`,
+  absoluteTitle: true,
+  description: siteConfig.description,
+  path: "/",
+});
+
+const homeJsonLd = {
+  "@graph": [
+    {
+      "@type": "WebSite",
+      "@id": absoluteUrl("/#website"),
+      name: siteConfig.name,
+      url: absoluteUrl("/"),
+      description: siteConfig.description,
+      publisher: { "@id": organizationJsonLd["@id"] },
+    },
+    organizationJsonLd,
+    webApplicationJsonLd("/"),
+  ],
+};
 
 const highlights = [
   { icon: RulerIcon, label: "3D roof layout" },
@@ -44,12 +74,13 @@ export default async function HomePage() {
   const featuredProducts = (await getProducts()).filter((p) => p.featured);
   return (
     <>
+      <JsonLd data={homeJsonLd} />
       {/* Hero */}
       <section className="mx-auto grid max-w-6xl items-center gap-12 px-4 py-16 sm:px-6 md:grid-cols-2 md:py-24">
         <div className="space-y-8">
           <Badge variant="outline" className="h-7 gap-2 px-3 font-mono tracking-wider uppercase">
             <span className="size-1.5 rounded-full bg-primary" />
-            Residential &amp; commercial solar
+            Free 3D solar layout planner
           </Badge>
 
           <div className="space-y-5">
@@ -57,8 +88,9 @@ export default async function HomePage() {
               Plan your solar roof before a single panel goes up.
             </h1>
             <p className="max-w-md text-lg text-pretty text-muted-foreground">
-              Lay out panels on a 3D model of your roof, see the output you can
-              expect, and book a free assessment with our installers.
+              Lay out solar panels on a 3D model of your roof, see how many
+              panels you need and the output you can expect, then book a free
+              assessment with our installers.
             </p>
           </div>
 
@@ -152,10 +184,11 @@ export default async function HomePage() {
             <div className="max-w-xl space-y-3">
               <p className="eyebrow text-primary-strong">Simulator</p>
               <h2 className="text-3xl font-semibold tracking-tight text-balance">
-                See your layout in 3D
+                Free 3D solar panel simulator
               </h2>
               <p className="text-muted-foreground">
-                Pick a building, then drag panels, inverters, and batteries into place.
+                Pick a home or commercial building, then drag solar panels, inverters, and
+                batteries into place to size your system.
               </p>
             </div>
             <Link href="/simulator" className={cn(buttonVariants(), "h-10 px-4")}>

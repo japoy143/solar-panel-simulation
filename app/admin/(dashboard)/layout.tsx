@@ -1,6 +1,12 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import { AdminMobileBar, AdminSidebar } from "@/components/admin/admin-nav";
 import { requireAdmin } from "@/lib/auth";
+
+export const metadata: Metadata = {
+  title: "Admin",
+  robots: { index: false, follow: false },
+};
 
 /** Reads the session, so it streams in behind Suspense (required with Cache Components). */
 async function AdminGate({ children }: { children: React.ReactNode }) {

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeftIcon } from "lucide-react";
 import {
@@ -9,6 +10,11 @@ import {
 } from "@/components/ui/card";
 import { Logo } from "@/components/site/logo";
 import { LoginForm } from "@/components/admin/login-form";
+
+export const metadata: Metadata = {
+  title: "Admin sign in",
+  robots: { index: false, follow: false },
+};
 
 export default function AdminLoginPage() {
   return (

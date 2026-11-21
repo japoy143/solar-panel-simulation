@@ -15,7 +15,7 @@ export function SiteFooter() {
         <div className="max-w-xs space-y-3">
           <Logo />
           <p className="text-sm text-muted-foreground">
-            Solar layout planning and installation.
+            Free 3D solar panel layout planner and installation booking.
           </p>
         </div>
         <nav aria-label="Footer" className="space-y-3">

@@ -60,6 +60,24 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 
 ## Deploy on Vercel
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. Import the repo at [vercel.com/new](https://vercel.com/new).
+2. Under *Settings → Environment Variables*, add:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+   | Variable | Required | Value |
+   |---|---|---|
+   | `NEXT_PUBLIC_SUPABASE_URL` | Yes | Supabase project URL |
+   | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Yes (or `NEXT_PUBLIC_SUPABASE_ANON_KEY`) | Supabase publishable key |
+   | `NEXT_PUBLIC_SITE_URL` | Once you have a custom domain | e.g. `https://www.example.com` (no trailing slash) |
+
+   `NEXT_PUBLIC_SITE_URL` drives canonical URLs, `sitemap.xml`, `robots.txt`, and social images.
+   Until it's set, the site uses Vercel's production URL. Redeploy after changing any of these;
+   they're read at build time.
+
+### SEO after deploying
+
+SEO settings live in `lib/site.ts` (name, description, keywords) and each page's `metadata`.
+Generated routes: `/sitemap.xml`, `/robots.txt`, `/manifest.webmanifest`, `/opengraph-image`, `/icon`.
+
+- Submit `https://<your-domain>/sitemap.xml` in [Google Search Console](https://search.google.com/search-console) (and Bing Webmaster Tools).
+- Check structured data on `/`, `/products`, and `/booking` with the [Rich Results Test](https://search.google.com/test/rich-results).
+- Check the social preview with any Open Graph previewer.
