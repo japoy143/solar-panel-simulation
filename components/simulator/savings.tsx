@@ -5,10 +5,11 @@ import { BatteryChargingIcon, PiggyBankIcon, RotateCcwIcon, SunIcon, UtilityPole
 import { Card } from "@/components/ui/card";
 import { estimateSavings, DAYTIME_LOAD_SHARE } from "@/lib/simulator/savings";
 import { currentItems, useSimulator, type SavingsSettings } from "@/lib/simulator/store";
-import { summarize } from "@/lib/simulator/summary";
+import { missingParts, summarize } from "@/lib/simulator/summary";
 import { currencyCodes, detectCountry, getTariff, TARIFF_SOURCES, TARIFFS } from "@/lib/simulator/tariffs";
 import { cn } from "@/lib/utils";
 import { DisclosureButton, DisclosurePanel } from "./disclosure";
+import { SetupSteps } from "./setup-steps";
 
 const DEFAULT_USAGE_KWH = 300;
 
@@ -39,7 +40,11 @@ const kwh = (n: number) => `${Math.round(n).toLocaleString()} kWh`;
 const fieldClass =
   "h-10 w-full min-w-0 rounded-lg border bg-background px-3 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50";
 
-/** Bill savings for the current layout, using the visitor's electricity price and usage. */
+/**
+ * Bill savings for the current layout, using the visitor's electricity price and usage. Figures only
+ * appear once the system is assembled (panels feeding an inverter, any battery on a hybrid one);
+ * until then it lists what's missing. Price and usage can be set anytime.
+ */
 export function Savings() {
   const items = useSimulator(currentItems);
   const stored = useSimulator((s) => s.savings);
@@ -59,7 +64,8 @@ export function Savings() {
     batteryKwh: summary.batteryKwh,
   });
   const cur = settings.currency;
-  const hasSolar = summary.panels > 0;
+  const missing = missingParts(summary);
+  const ready = missing.length === 0;
   const ids = useId();
 
   const [open, setOpen] = useState(false);
@@ -79,14 +85,11 @@ export function Savings() {
           </p>
         </div>
 
-        {!hasSolar ? (
-          <div>
-            <p className="font-heading text-4xl font-semibold text-muted-foreground/60 tabular-nums">
-              {money(0, cur)}
-              <span className="text-base font-medium"> / month</span>
-            </p>
+        {!ready ? (
+          <div className="space-y-3">
+            <SetupSteps title="Finish your system to see your savings:" steps={missing} />
             <p className="text-sm text-muted-foreground">
-              Add panels to see your savings. Your bill now: about{" "}
+              Your bill now: about{" "}
               <strong className="font-medium text-foreground">{money(result.billBefore, cur)}</strong> a month.
             </p>
           </div>
@@ -235,7 +238,7 @@ export function Savings() {
             </div>
           </div>
 
-          {hasSolar && (
+          {ready && (
             <div className="space-y-3 rounded-lg bg-muted/50 p-4">
               <UsageBar usage={settings.usageKwh} direct={result.directKwh} battery={result.batteryKwh} />
               <ul className="space-y-1.5 text-sm text-muted-foreground">
@@ -264,7 +267,7 @@ export function Savings() {
           )}
 
           <p className="text-xs leading-relaxed text-muted-foreground">
-            Average month: {summary.yearlyKwh.toLocaleString()} kWh of solar a year, about{" "}
+            Average month{ready ? `: ${summary.yearlyKwh.toLocaleString()} kWh of solar a year` : ""}, about{" "}
             {Math.round(DAYTIME_LOAD_SHARE * 100)}% of home use in daylight, a battery cycled once a day. Energy charges
             only (not fixed or standing charges). Country rates are averages; tiers and providers vary.
           </p>

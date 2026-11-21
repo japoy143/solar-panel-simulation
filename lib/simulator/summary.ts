@@ -13,6 +13,8 @@ export type LayoutSummary = {
   yearlyKwh: number;
   inverterKw: number;
   batteryKwh: number;
+  /** At least one hybrid (battery-ready) inverter is placed. */
+  hasHybrid: boolean;
   /** Sum of the batteries' max continuous output (kW); null if a battery has no rating. */
   batteryOutputKw: number | null;
   /** Most power the backup system can deliver at once: the smaller of battery and hybrid inverter output. */
@@ -66,6 +68,7 @@ export function summarize(items: PlacedItem[]): LayoutSummary {
     yearlyKwh: Math.round(kwp * YIELD_KWH_PER_KWP),
     inverterKw,
     batteryKwh,
+    hasHybrid,
     batteryOutputKw,
     backupLimitKw,
     products: [...counts].map(([slug, count]) => ({
@@ -76,4 +79,18 @@ export function summarize(items: PlacedItem[]): LayoutSummary {
     warnings,
     live: panels > 0 && inverterKw > 0 && (batteryKwh === 0 || hasHybrid),
   };
+}
+
+/**
+ * What still has to be placed before an estimate can be shown, as short instructions in build
+ * order. Empty means the system is fully assembled. `battery: true` also requires a battery on a
+ * hybrid inverter (backup power needs one; bill savings don't).
+ */
+export function missingParts(s: LayoutSummary, opts: { battery?: boolean } = {}): string[] {
+  const missing: string[] = [];
+  if (s.panels === 0) missing.push("Add solar panels to the roof");
+  if (s.inverterKw === 0) missing.push(opts.battery ? "Add a hybrid inverter" : "Add an inverter");
+  else if (!s.hasHybrid && (opts.battery || s.batteryKwh > 0)) missing.push("Swap in a hybrid inverter for the battery");
+  if (opts.battery && s.batteryKwh === 0) missing.push("Add a battery");
+  return missing;
 }
