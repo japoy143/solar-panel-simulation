@@ -59,12 +59,8 @@ const icons: Record<ApplianceIcon, LucideIcon> = {
 
 const PREVIEW_KWH = 10;
 const watts = (w: number) => (w >= 1000 ? `${(w / 1000).toFixed(w % 1000 ? 1 : 0)} kW` : `${w} W`);
-/** Shown as quick figures on the collapsed card. */
-const HIGHLIGHTS: [id: string, short: string][] = [
-  ["fridge", "Fridge"],
-  ["fan", "Fan"],
-  ["lights", "Lights"],
-];
+/** How many checked appliances get a quick "alone" figure on the collapsed card. */
+const MAX_HIGHLIGHTS = 3;
 
 type Tab = "alone" | "together";
 
@@ -87,7 +83,11 @@ export function BackupPower() {
   const limitKw = hasBattery ? summary.backupLimitKw : null;
   const recharge = hasBattery ? rechargeHours(usable, summary.kwp) : null;
   const together = runtimeTogether(scenario, usable, limitKw);
-  const selectedCount = Object.values(scenario).reduce((n, q) => n + (q > 0 ? 1 : 0), 0);
+  // Only appliances the visitor has checked (in list order); unknown ids from old saves are ignored.
+  const selected = APPLIANCES.filter((a) => (scenario[a.id] ?? 0) > 0);
+  const selectedCount = selected.length;
+  const highlights = selected.slice(0, MAX_HIGHLIGHTS);
+  const moreCount = selectedCount - highlights.length;
 
   return (
     <Card className="@container gap-0 py-5">
@@ -136,22 +136,27 @@ export function BackupPower() {
           )}
         </p>
 
-        <ul className={cn("grid grid-cols-3 gap-2", !hasBattery && "opacity-60")}>
-          {HIGHLIGHTS.map(([id, short]) => {
-            const a = APPLIANCES.find((x) => x.id === id);
-            if (!a) return null;
-            const Icon = icons[a.icon];
-            return (
-              <li key={id} className="rounded-lg bg-muted/60 px-3 py-2.5" title={`${a.name} alone`}>
-                <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <Icon className="size-3 shrink-0" />
-                  <span className="truncate">{short}</span>
-                </span>
-                <span className="mt-0.5 block text-base font-semibold tabular-nums">{formatAlone(a, usable)}</span>
-              </li>
-            );
-          })}
-        </ul>
+        {highlights.length > 0 && (
+          <div className={cn("space-y-1.5", !hasBattery && "opacity-60")}>
+            <ul className="grid grid-cols-3 gap-2">
+              {highlights.map((a) => {
+                const Icon = icons[a.icon];
+                return (
+                  <li key={a.id} className="min-w-0 rounded-lg bg-muted/60 px-3 py-2.5" title={`${a.name} alone`}>
+                    <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <Icon className="size-3 shrink-0" />
+                      <span className="truncate">{a.name}</span>
+                    </span>
+                    <span className="mt-0.5 block text-base font-semibold tabular-nums">{formatAlone(a, usable)}</span>
+                  </li>
+                );
+              })}
+            </ul>
+            <p className="text-xs text-muted-foreground">
+              Each on its own{moreCount > 0 && <> · +{moreCount} more selected</>}
+            </p>
+          </div>
+        )}
       </div>
 
       <DisclosurePanel id={`${ids}-panel`} open={open}>
