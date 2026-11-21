@@ -28,7 +28,8 @@ export function SiteFooter() {
           <div className="max-w-sm space-y-3">
             <Logo />
             <p className="text-sm leading-relaxed text-muted-foreground">
-              Plan your solar layout in 3D, see what it saves, then book a free site assessment.
+              Free 3D solar panel layout planner: see what your system saves, then book a free
+              site assessment.
             </p>
           </div>
 

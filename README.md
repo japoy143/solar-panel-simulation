@@ -104,6 +104,29 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 
 ## Deploy on Vercel
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. Import the repo at [vercel.com/new](https://vercel.com/new).
+2. Under *Settings → Environment Variables*, add:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+   | Variable | Required | Value |
+   |---|---|---|
+   | `NEXT_PUBLIC_SUPABASE_URL` | Yes | Supabase project URL |
+   | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Yes (or `NEXT_PUBLIC_SUPABASE_ANON_KEY`) | Supabase publishable key |
+   | `NEXT_PUBLIC_SITE_URL` | Once you have a custom domain | e.g. `https://www.example.com` (no trailing slash) |
+   | `SUPABASE_SERVICE_ROLE_KEY` | For client threads + webhook | Server-only; never prefix with `NEXT_PUBLIC_` |
+   | `RESEND_API_KEY`, `EMAIL_FROM`, `ADMIN_EMAIL` | For booking emails | See *Booking emails* above |
+   | `INBOUND_DOMAIN`, `RESEND_WEBHOOK_SECRET` | For two-way email | See *Client conversations* above |
+   | `LOG_LEVEL` | No | Defaults to `info` in production |
+
+   `NEXT_PUBLIC_SITE_URL` drives canonical URLs, `sitemap.xml`, `robots.txt`, social images, and
+   links in emails.
+   Until it's set, the site uses Vercel's production URL. Redeploy after changing any of these;
+   they're read at build time.
+
+### SEO after deploying
+
+SEO settings live in `lib/site.ts` (name, description, keywords) and each page's `metadata`.
+Generated routes: `/sitemap.xml`, `/robots.txt`, `/manifest.webmanifest`, `/opengraph-image`, `/icon`.
+
+- Submit `https://<your-domain>/sitemap.xml` in [Google Search Console](https://search.google.com/search-console) (and Bing Webmaster Tools).
+- Check structured data on `/`, `/products`, and `/booking` with the [Rich Results Test](https://search.google.com/test/rich-results).
+- Check the social preview with any Open Graph previewer.

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import { AdminMobileBar, AdminSidebar } from "@/components/admin/admin-nav";
 import { NotificationBell } from "@/components/admin/notification-bell";
@@ -6,6 +7,11 @@ import { requireAdmin } from "@/lib/auth";
 // Admin pages check the session and load live data on every request, so they block on the
 // server by design. Opt out of instant-navigation validation (see docs: instant-navigation#opting-out).
 export const instant = false;
+
+export const metadata: Metadata = {
+  title: "Admin",
+  robots: { index: false, follow: false },
+};
 
 /** Reads the session, so it streams in behind Suspense (required with Cache Components). */
 async function AdminGate({ children }: { children: React.ReactNode }) {

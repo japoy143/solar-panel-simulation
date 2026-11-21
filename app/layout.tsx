@@ -1,9 +1,10 @@
 import { Suspense } from "react";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { IBM_Plex_Mono, IBM_Plex_Sans, Manrope } from "next/font/google";
 import { FlashToast } from "@/components/flash-toast";
 import { ConfirmProvider } from "@/components/ui/confirm-dialog";
 import { Toaster } from "@/components/ui/sonner";
+import { siteConfig, siteUrl } from "@/lib/site";
 import "./globals.css";
 
 // Heading
@@ -27,8 +28,39 @@ const plexSans = IBM_Plex_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Solar Layout Simulator",
-  description: "Plan and book solar panel installations",
+  metadataBase: new URL(siteUrl),
+  title: {
+    default: `${siteConfig.name}: ${siteConfig.tagline}`,
+    template: `%s | ${siteConfig.name}`,
+  },
+  description: siteConfig.description,
+  keywords: [...siteConfig.keywords],
+  applicationName: siteConfig.name,
+  category: "technology",
+  // Canonical URLs are set per page (pageMetadata in lib/site.ts) so routes without one,
+  // like /admin, don't inherit the home page's canonical.
+  openGraph: {
+    type: "website",
+    siteName: siteConfig.name,
+    locale: "en_US",
+    title: `${siteConfig.name}: ${siteConfig.tagline}`,
+    description: siteConfig.description,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: `${siteConfig.name}: ${siteConfig.tagline}`,
+    description: siteConfig.description,
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1 },
+  },
+  formatDetection: { telephone: false, email: false, address: false },
+};
+
+export const viewport: Viewport = {
+  themeColor: siteConfig.colors.green,
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

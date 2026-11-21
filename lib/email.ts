@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
 import { recordMessage, type MessageKind } from "@/lib/data/messages";
 import { maskEmail, moduleLogger } from "@/lib/server/logger";
+import { siteUrl } from "@/lib/site";
 
 const log = moduleLogger("email");
 
@@ -18,7 +19,8 @@ const ADMIN_EMAILS = (process.env.ADMIN_EMAIL ?? "")
   .split(",")
   .map((s) => s.trim())
   .filter(Boolean);
-const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000").replace(/\/$/, "");
+/** NEXT_PUBLIC_SITE_URL, else the Vercel production URL (see lib/site.ts). */
+const SITE_URL = siteUrl;
 /**
  * Domain set up for receiving in Resend (MX records), e.g. `inbound.yourdomain.com`. Client emails
  * use `reply+<clientId>@` this domain as Reply-To, so replies land in the right client's thread.
