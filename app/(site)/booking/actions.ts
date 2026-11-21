@@ -2,6 +2,7 @@
 
 import { after } from "next/server";
 import { describeLayout, type BookingLayout } from "@/lib/data/bookings";
+import { HONEYPOT_FIELD } from "@/lib/booking-form";
 import { getBookingClientId } from "@/lib/data/clients";
 import { sendBookingReceived } from "@/lib/email";
 import { runAction, unexpected } from "@/lib/server/action";
@@ -17,6 +18,11 @@ export type BookingState =
 type BookingField = "name" | "email" | "date" | "address";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** One-line fields (they end up in email subjects): no newlines or other control characters. */
+const singleLine = (s: string) => s.replace(/\p{Cc}+/gu, " ").trim();
+/** Multi-line text keeps line breaks and tabs, but no other control characters (incl. `\r`). */
+const multiLine = (s: string) => s.replace(/(?![\n\t])\p{Cc}/gu, "").trim();
 
 /** A real YYYY-MM-DD date (rejects "2026-02-31", which Postgres would refuse on insert). */
 function isCalendarDate(s: string) {
@@ -43,11 +49,15 @@ export async function createBooking(_prev: BookingState, formData: FormData): Pr
   return runAction(
     "createBooking",
     async ({ log, ref }) => {
-      const text = (key: string) => String(formData.get(key) ?? "").trim();
+      const raw = (key: string) => {
+        const value = formData.get(key);
+        return typeof value === "string" ? value : "";
+      };
+      const text = (key: string) => singleLine(raw(key));
       const fieldErrors: Partial<Record<BookingField, string>> = {};
 
       if (!text("name")) fieldErrors.name = "Enter your name.";
-      if (!EMAIL.test(text("email"))) fieldErrors.email = "Enter a valid email address.";
+      if (!EMAIL.test(text("email")) || text("email").length > 254) fieldErrors.email = "Enter a valid email address.";
       if (!text("address")) fieldErrors.address = "Enter the installation address.";
       const date = text("date");
       if (!date) fieldErrors.date = "Pick a preferred date.";
@@ -63,6 +73,13 @@ export async function createBooking(_prev: BookingState, formData: FormData): Pr
           fieldErrors,
           submittedAt: Date.now(),
         };
+      }
+
+      // A bot filled the hidden field: answer as if it worked so it doesn't adapt, but save and
+      // email nothing (otherwise the form could be used to send our emails to any address).
+      if (raw(HONEYPOT_FIELD)) {
+        log.info("booking dropped: honeypot field filled");
+        return { status: "success", message: "Thanks! We'll email you to confirm your visit.", submittedAt: Date.now() };
       }
 
       if (!isSupabaseConfigured) {
@@ -94,14 +111,15 @@ export async function createBooking(_prev: BookingState, formData: FormData): Pr
         phone: text("phone").slice(0, 50) || null,
         preferred_date: date,
         address: text("address").slice(0, 500),
-        notes: text("notes").slice(0, 5000) || null,
+        notes: multiLine(raw("notes")).slice(0, 5000) || null,
         layout,
       };
 
       // Guest client: Row Level Security only allows inserting new bookings, never reading them.
       const { error } = await createPublicClient().from("bookings").insert(booking);
       if (error) {
-        log.error({ code: error.code, details: error.details, hint: error.hint, msg: error.message }, "booking insert failed");
+        // No `details`: for constraint violations Postgres puts the whole failing row (customer PII) there.
+        log.error({ code: error.code, hint: error.hint, msg: error.message }, "booking insert failed");
         return failed(`We couldn't save your request. Please try again. (Reference: ${ref})`);
       }
       log.info(

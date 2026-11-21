@@ -73,16 +73,23 @@ export type SendResult =
 // Sending
 // ---------------------------------------------------------------------------
 
+/**
+ * `kind` labels the email in logs instead of its subject, which can carry customer names or
+ * whatever the admin typed.
+ */
 async function send(
+  kind: string,
   to: string | string[],
-  subject: string,
+  rawSubject: string,
   html: string,
   text: string,
   replyTo?: string,
 ): Promise<SendResult> {
   const recipients = [to].flat().map(maskEmail);
+  // Subjects include customer-typed text: never let a line break reach the header.
+  const subject = rawSubject.replace(/\s+/g, " ").trim().slice(0, 300);
   if (!API_KEY) {
-    log.warn({ subject, to: recipients }, "RESEND_API_KEY not set; email skipped");
+    log.warn({ kind, to: recipients }, "RESEND_API_KEY not set; email skipped");
     return { ok: false, error: "Email isn't configured.", skipped: true };
   }
   // Never throw: an email problem must not undo a saved booking.
@@ -90,13 +97,13 @@ async function send(
     const { data, error } = await resend().emails.send({ from: FROM, to, subject, html, text, replyTo });
     if (error) {
       // e.g. "validation_error: You can only send testing emails to your own email address"
-      log.error({ subject, to: recipients, name: error.name, msg: error.message }, "email rejected by Resend");
+      log.error({ kind, to: recipients, name: error.name, msg: error.message }, "email rejected by Resend");
       return { ok: false, error: error.message };
     }
-    log.info({ subject, to: recipients, emailId: data?.id }, "email sent");
+    log.info({ kind, to: recipients, emailId: data?.id }, "email sent");
     return { ok: true, id: data?.id ?? null };
   } catch (err) {
-    log.error({ err, subject, to: recipients }, "email send threw");
+    log.error({ err, kind, to: recipients }, "email send threw");
     return { ok: false, error: "The email service couldn't be reached." };
   }
 }
@@ -135,11 +142,11 @@ export async function sendBookingReceived(b: BookingEmailData) {
   const customer = customerReceived(b);
   const admin = adminNewBooking(b);
   await Promise.allSettled([
-    send(b.email, customer.subject, customer.html, customer.text, replyAddress(b.clientId)).then((r) =>
+    send("booking_received", b.email, customer.subject, customer.html, customer.text, replyAddress(b.clientId)).then((r) =>
       recordCustomerEmail(b, "booking_received", customer, r),
     ),
     ADMIN_EMAILS.length > 0
-      ? send(ADMIN_EMAILS, admin.subject, admin.html, admin.text, b.email) // reply goes to the customer
+      ? send("admin_new_booking", ADMIN_EMAILS, admin.subject, admin.html, admin.text, b.email) // reply goes to the customer
       : Promise.resolve(log.warn("ADMIN_EMAIL not set; admin alert skipped")),
   ]);
 }
@@ -147,7 +154,7 @@ export async function sendBookingReceived(b: BookingEmailData) {
 /** Admin marked the booking as confirmed → customer. `db`: the admin's client, for recording. */
 export async function sendBookingConfirmed(b: BookingEmailData, db?: SupabaseClient) {
   const m = customerConfirmed(b);
-  const result = await send(b.email, m.subject, m.html, m.text, replyAddress(b.clientId));
+  const result = await send("booking_confirmed", b.email, m.subject, m.html, m.text, replyAddress(b.clientId));
   await recordCustomerEmail(b, "booking_confirmed", m, result, db);
 }
 
@@ -166,7 +173,7 @@ export async function sendClientMessage(c: {
     .join("");
   const html = shell(paragraphs, "Reply to this email to continue the conversation.");
   const text = c.body.trim();
-  const result = await send(c.email, c.subject, html, text, replyAddress(c.clientId));
+  const result = await send("manual", c.email, c.subject, html, text, replyAddress(c.clientId));
   return { ...result, html, text };
 }
 

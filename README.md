@@ -31,6 +31,9 @@ Customers browse as guests; only the single admin account can open `/admin`.
    **service role key** (*Project Settings → API → `service_role`/secret key*) to `.env.local` as
    `SUPABASE_SERVICE_ROLE_KEY`. It bypasses Row Level Security, so keep it server-side only: it's
    used solely to record the automatic booking emails and by the Resend webhook.
+9. **Security fixes:** run `supabase/migrations/0004_security_fixes.sql`. Guests can then only fill
+   in the booking form's own fields through the API, bookings get size/format limits in the
+   database, and the helper functions get a fixed `search_path`.
 
 ### Booking emails (Resend)
 
