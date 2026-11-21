@@ -36,9 +36,10 @@ import {
   type ApplianceIcon,
 } from "@/lib/simulator/appliances";
 import { currentItems, useSimulator } from "@/lib/simulator/store";
-import { summarize } from "@/lib/simulator/summary";
+import { missingParts, summarize } from "@/lib/simulator/summary";
 import { cn } from "@/lib/utils";
 import { DisclosureButton, DisclosurePanel } from "./disclosure";
+import { SetupSteps } from "./setup-steps";
 
 const icons: Record<ApplianceIcon, LucideIcon> = {
   aircon: AirVentIcon,
@@ -57,21 +58,17 @@ const icons: Record<ApplianceIcon, LucideIcon> = {
   iron: ShirtIcon,
 };
 
-const PREVIEW_KWH = 10;
 const watts = (w: number) => (w >= 1000 ? `${(w / 1000).toFixed(w % 1000 ? 1 : 0)} kW` : `${w} W`);
-/** Shown as quick figures on the collapsed card. */
-const HIGHLIGHTS: [id: string, short: string][] = [
-  ["fridge", "Fridge"],
-  ["fan", "Fan"],
-  ["lights", "Lights"],
-];
+/** How many checked appliances get a quick "alone" figure on the collapsed card. */
+const MAX_HIGHLIGHTS = 3;
 
 type Tab = "alone" | "together";
 
 /**
  * "How long does the battery last?" — compact card under the 3D view. Collapsed, it shows the
  * runtime for the selected appliances running together; expanded, the per-appliance figures and
- * the appliance picker.
+ * the appliance picker. Figures only appear once the system is fully assembled (panels, a hybrid
+ * inverter and a battery); until then it lists what's missing. Appliances can be picked anytime.
  */
 export function BackupPower() {
   const items = useSimulator(currentItems);
@@ -81,13 +78,18 @@ export function BackupPower() {
   const [tab, setTab] = useState<Tab>("together");
   const ids = useId();
 
-  const hasBattery = summary.batteryKwh > 0;
-  const capacity = hasBattery ? summary.batteryKwh : PREVIEW_KWH;
+  const missing = missingParts(summary, { battery: true });
+  const ready = missing.length === 0;
+  const capacity = summary.batteryKwh;
   const usable = usableKwh(capacity);
-  const limitKw = hasBattery ? summary.backupLimitKw : null;
-  const recharge = hasBattery ? rechargeHours(usable, summary.kwp) : null;
+  const limitKw = ready ? summary.backupLimitKw : null;
+  const recharge = ready ? rechargeHours(usable, summary.kwp) : null;
   const together = runtimeTogether(scenario, usable, limitKw);
-  const selectedCount = Object.values(scenario).reduce((n, q) => n + (q > 0 ? 1 : 0), 0);
+  // Only appliances the visitor has checked (in list order); unknown ids from old saves are ignored.
+  const selected = APPLIANCES.filter((a) => (scenario[a.id] ?? 0) > 0);
+  const selectedCount = selected.length;
+  const highlights = selected.slice(0, MAX_HIGHLIGHTS);
+  const moreCount = selectedCount - highlights.length;
 
   return (
     <Card className="@container gap-0 py-5">
@@ -105,95 +107,101 @@ export function BackupPower() {
           )}
         </div>
 
-        <div className={cn(!hasBattery && "opacity-60")}>
-          {together.totalW > 0 ? (
-            <>
-              <p className="font-heading text-4xl font-semibold text-primary-strong tabular-nums">
-                ~{formatDuration(together.hours)}
-              </p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                running your {selectedCount} selected appliance{selectedCount === 1 ? "" : "s"} together
-              </p>
-            </>
-          ) : (
-            <p className="text-sm text-muted-foreground">Pick the appliances you&apos;d run in an outage.</p>
-          )}
-          {together.overLimit && (
-            <p className="mt-1 text-xs font-medium text-destructive">
-              Peak {watts(together.peakW)} is over the {limitKw} kW the system can deliver.
-            </p>
-          )}
-        </div>
+        {!ready ? (
+          <SetupSteps title="Finish your system to see how long the battery lasts:" steps={missing} />
+        ) : (
+          <>
+            <div>
+              {together.totalW > 0 ? (
+                <>
+                  <p className="font-heading text-4xl font-semibold text-primary-strong tabular-nums">
+                    ~{formatDuration(together.hours)}
+                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    running your {selectedCount} selected appliance{selectedCount === 1 ? "" : "s"} together
+                  </p>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">Pick the appliances you&apos;d run in an outage.</p>
+              )}
+              {together.overLimit && (
+                <p className="mt-1 text-xs font-medium text-destructive">
+                  Peak {watts(together.peakW)} is over the {limitKw} kW the system can deliver.
+                </p>
+              )}
+            </div>
 
-        <p className="text-sm text-muted-foreground">
-          {hasBattery ? (
-            <>
+            <p className="text-sm text-muted-foreground">
               <strong className="font-medium text-foreground">{usable.toFixed(1)} kWh usable</strong> of {capacity} kWh
               {limitKw != null && <> · up to {limitKw} kW at once</>}
-            </>
-          ) : (
-            <>No battery yet: preview for a {PREVIEW_KWH} kWh battery.</>
-          )}
-        </p>
+            </p>
 
-        <ul className={cn("grid grid-cols-3 gap-2", !hasBattery && "opacity-60")}>
-          {HIGHLIGHTS.map(([id, short]) => {
-            const a = APPLIANCES.find((x) => x.id === id);
-            if (!a) return null;
-            const Icon = icons[a.icon];
-            return (
-              <li key={id} className="rounded-lg bg-muted/60 px-3 py-2.5" title={`${a.name} alone`}>
-                <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <Icon className="size-3 shrink-0" />
-                  <span className="truncate">{short}</span>
-                </span>
-                <span className="mt-0.5 block text-base font-semibold tabular-nums">{formatAlone(a, usable)}</span>
-              </li>
-            );
-          })}
-        </ul>
+            {highlights.length > 0 && (
+              <div className="space-y-1.5">
+                <ul className="grid grid-cols-3 gap-2">
+                  {highlights.map((a) => {
+                    const Icon = icons[a.icon];
+                    return (
+                      <li key={a.id} className="min-w-0 rounded-lg bg-muted/60 px-3 py-2.5" title={`${a.name} alone`}>
+                        <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <Icon className="size-3 shrink-0" />
+                          <span className="truncate">{a.name}</span>
+                        </span>
+                        <span className="mt-0.5 block text-base font-semibold tabular-nums">{formatAlone(a, usable)}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+                <p className="text-xs text-muted-foreground">
+                  Each on its own{moreCount > 0 && <> · +{moreCount} more selected</>}
+                </p>
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       <DisclosurePanel id={`${ids}-panel`} open={open}>
         <div className="space-y-4 border-t px-5 py-5">
-          <div role="tablist" aria-label="Backup estimate" className="flex w-full rounded-lg bg-muted p-1 text-sm">
-            {(
-              [
-                ["together", "Together"],
-                ["alone", "One at a time"],
-              ] as const
-            ).map(([value, label]) => (
-              <button
-                key={value}
-                type="button"
-                role="tab"
-                id={`${ids}-${value}`}
-                aria-selected={tab === value}
-                aria-controls={`${ids}-${value}-panel`}
-                onClick={() => setTab(value)}
-                className={cn(
-                  "flex-1 rounded-md px-2 py-2 font-medium transition-colors",
-                  tab === value ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+          {!ready ? (
+            <Together usable={usable} limitKw={limitKw} showResults={false} />
+          ) : (
+            <>
+              <div role="tablist" aria-label="Backup estimate" className="flex w-full rounded-lg bg-muted p-1 text-sm">
+                {(
+                  [
+                    ["together", "Together"],
+                    ["alone", "One at a time"],
+                  ] as const
+                ).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    role="tab"
+                    id={`${ids}-${value}`}
+                    aria-selected={tab === value}
+                    aria-controls={`${ids}-${value}-panel`}
+                    onClick={() => setTab(value)}
+                    className={cn(
+                      "flex-1 rounded-md px-2 py-2 font-medium transition-colors",
+                      tab === value ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
 
-          <div
-            id={`${ids}-${tab}-panel`}
-            role="tabpanel"
-            aria-labelledby={`${ids}-${tab}`}
-            className={cn(!hasBattery && "opacity-60")}
-          >
-            {tab === "alone" ? (
-              <AloneList usable={usable} limitKw={limitKw} />
-            ) : (
-              <Together usable={usable} limitKw={limitKw} />
-            )}
-          </div>
-          <Footnote />
+              <div id={`${ids}-${tab}-panel`} role="tabpanel" aria-labelledby={`${ids}-${tab}`}>
+                {tab === "alone" ? (
+                  <AloneList usable={usable} limitKw={limitKw} />
+                ) : (
+                  <Together usable={usable} limitKw={limitKw} showResults />
+                )}
+              </div>
+              <Footnote />
+            </>
+          )}
         </div>
       </DisclosurePanel>
 
@@ -203,7 +211,7 @@ export function BackupPower() {
           onToggle={() => setOpen((o) => !o)}
           controls={`${ids}-panel`}
           openLabel="Hide details"
-          closedLabel="Choose appliances & see each one"
+          closedLabel={ready ? "Choose appliances & see each one" : "Choose appliances"}
         />
       </div>
     </Card>
@@ -232,7 +240,16 @@ function AloneList({ usable, limitKw }: { usable: number; limitKw: number | null
   );
 }
 
-function Together({ usable, limitKw }: { usable: number; limitKw: number | null }) {
+function Together({
+  usable,
+  limitKw,
+  showResults,
+}: {
+  usable: number;
+  limitKw: number | null;
+  /** False until the system is assembled: just the picker, no load or runtime figures. */
+  showResults: boolean;
+}) {
   const scenario = useSimulator((s) => s.backupScenario);
   const setQty = useSimulator((s) => s.setApplianceQty);
   const result = runtimeTogether(scenario, usable, limitKw);
@@ -240,7 +257,7 @@ function Together({ usable, limitKw }: { usable: number; limitKw: number | null 
 
   return (
     <div className="space-y-4">
-      {result.totalW > 0 && (
+      {showResults && result.totalW > 0 && (
         <div className="space-y-2" aria-live="polite">
           <dl className="flex justify-between text-sm">
             <div>
