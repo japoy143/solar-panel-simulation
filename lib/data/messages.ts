@@ -74,20 +74,21 @@ type Row = {
   error: string | null;
 };
 
-/** The client's conversation, oldest first. Admin only (RLS). */
+/** The client's latest `limit` messages, oldest first. Admin only (RLS). */
 export async function getMessages(clientId: string, limit = 500): Promise<Message[]> {
   const supabase = await createClient();
+  // Newest first so a long thread keeps its latest messages, then flipped for display.
   const { data, error } = await supabase
     .from("messages")
     .select("id, created_at, booking_id, direction, kind, subject, body_text, from_email, to_email, status, error")
     .eq("client_id", clientId)
-    .order("created_at", { ascending: true })
+    .order("created_at", { ascending: false })
     .limit(limit);
   if (error) {
     log.error({ clientId, code: error.code, msg: error.message }, "messages query failed");
     throw new Error(`Couldn't load messages: ${error.message}`);
   }
-  return (data as Row[]).map((r) => ({
+  return (data as Row[]).reverse().map((r) => ({
     id: r.id,
     createdAt: r.created_at,
     bookingId: r.booking_id,

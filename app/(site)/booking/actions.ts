@@ -18,6 +18,20 @@ type BookingField = "name" | "email" | "date" | "address";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/** A real YYYY-MM-DD date (rejects "2026-02-31", which Postgres would refuse on insert). */
+function isCalendarDate(s: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const d = new Date(`${s}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
+}
+
+/**
+ * "Today" in the westernmost time zone (UTC−12), as YYYY-MM-DD. The form sends the visitor's
+ * local date, so comparing with the server's UTC date would reject "today" for anyone west of
+ * UTC once it's past midnight UTC (e.g. evenings in the Americas).
+ */
+const earliestToday = () => new Date(Date.now() - 12 * 3_600_000).toISOString().slice(0, 10);
+
 const failed = (message: string): BookingState => ({
   status: "error",
   message,
@@ -36,9 +50,9 @@ export async function createBooking(_prev: BookingState, formData: FormData): Pr
       if (!EMAIL.test(text("email"))) fieldErrors.email = "Enter a valid email address.";
       if (!text("address")) fieldErrors.address = "Enter the installation address.";
       const date = text("date");
-      const today = new Date().toISOString().slice(0, 10);
       if (!date) fieldErrors.date = "Pick a preferred date.";
-      else if (date < today) fieldErrors.date = "Pick a date from today onwards.";
+      else if (!isCalendarDate(date)) fieldErrors.date = "Pick a valid date.";
+      else if (date < earliestToday()) fieldErrors.date = "Pick a date from today onwards.";
 
       if (Object.keys(fieldErrors).length > 0) {
         // Field names only: never log what the customer typed.

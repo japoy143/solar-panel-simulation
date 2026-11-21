@@ -30,8 +30,9 @@ export const siteConfig = {
 } as const;
 
 function resolveSiteUrl() {
-  const explicit = process.env.NEXT_PUBLIC_SITE_URL;
-  if (explicit) return explicit.replace(/\/+$/, "");
+  const explicit = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  // Tolerate a bare domain ("example.com"): `new URL()` would throw on it and take down every page.
+  if (explicit) return (/^https?:\/\//i.test(explicit) ? explicit : `https://${explicit}`).replace(/\/+$/, "");
   // Set automatically on Vercel; lets SEO URLs work before a custom domain is configured.
   const vercel = process.env.VERCEL_PROJECT_PRODUCTION_URL ?? process.env.VERCEL_URL;
   if (vercel) return `https://${vercel}`;

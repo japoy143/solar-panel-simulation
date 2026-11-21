@@ -5,7 +5,7 @@ import { after } from "next/server";
 import { z } from "zod";
 import { requireAdmin } from "@/lib/auth";
 import { bookingStatuses, describeLayout, type BookingLayout, type BookingStatus } from "@/lib/data/bookings";
-import { sendBookingConfirmed } from "@/lib/email";
+import { isEmailConfigured, sendBookingConfirmed } from "@/lib/email";
 import { runAction, unexpected } from "@/lib/server/action";
 import { maskEmail } from "@/lib/server/logger";
 import { createClient } from "@/lib/supabase/server";
@@ -72,7 +72,8 @@ export async function updateBookingStatus(id: string, status: BookingStatus): Pr
           }
         });
       }
-      return { ok: true, emailed };
+      // Only claim an email went out when sending is configured (otherwise it is skipped).
+      return { ok: true, emailed: emailed && isEmailConfigured };
     },
     (ref) => ({ ok: false, error: unexpected(ref) }),
   );

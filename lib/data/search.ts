@@ -6,12 +6,16 @@ import "server-only";
  *
  * The query string is user input spliced into filter syntax, so every character that means
  * something to PostgREST (`,` `(` `)` `.` `:` quotes, and the `%` `*` `_` `\` wildcards) is
- * replaced with a space first. That only affects searching for those literal characters.
+ * replaced with the `*` wildcard first. A wildcard (not a space) keeps searches containing them
+ * working: "jo.doe@mail.com" becomes `jo*doe@mail*com`, which still matches the address.
  */
 export function searchFilter(q: string | undefined, columns: string[]): string | null {
   const term = (q ?? "")
-    .replace(/[,().:"'%*_\\]/g, " ")
+    .replace(/[,().:"'%*_\\]/g, "*")
     .replace(/\s+/g, " ")
+    .replace(/\*+/g, "*")
+    .trim()
+    .replace(/^\*+|\*+$/g, "")
     .trim()
     .slice(0, 100);
   if (!term) return null;
