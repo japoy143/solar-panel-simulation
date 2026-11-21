@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { LayoutSummaryField } from "@/components/site/layout-summary-field";
+import { HONEYPOT_FIELD } from "@/lib/booking-form";
 
 const initial: BookingState = { status: "idle" };
 
@@ -83,6 +84,11 @@ export function BookingForm() {
         <Textarea id="notes" name="notes" rows={4} placeholder="Roof type, shading, anything we should know" />
       </div>
       <LayoutSummaryField />
+      {/* Honeypot: off-screen and skipped by keyboard and screen readers; only bots fill it in. */}
+      <div aria-hidden="true" className="absolute -left-[9999px] size-px overflow-hidden">
+        <label htmlFor={HONEYPOT_FIELD}>Leave this field empty</label>
+        <input id={HONEYPOT_FIELD} name={HONEYPOT_FIELD} type="text" tabIndex={-1} autoComplete="off" />
+      </div>
       <div className="sm:col-span-2">
         <Button type="submit" className="h-10 w-full px-5 sm:w-auto" disabled={pending}>
           {pending && <Loader2Icon data-icon="inline-start" className="animate-spin" />}

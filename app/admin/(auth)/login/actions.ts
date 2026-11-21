@@ -19,6 +19,8 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
       const email = String(formData.get("email") ?? "").trim();
       const password = String(formData.get("password") ?? "");
       if (!email || !password) return fail("Enter your email and password.");
+      // Don't forward oversized input to Supabase (Server Actions are public POST endpoints).
+      if (email.length > 320 || password.length > 1024) return fail("Wrong email or password.");
       if (!isSupabaseConfigured) {
         log.error("login unavailable: Supabase is not configured");
         return fail("Supabase isn't configured yet. See the README setup steps.");
@@ -35,7 +37,8 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
       if (!isAdminUser(data.user)) {
         log.warn({ user: maskEmail(email) }, "login refused: account is not an admin");
         await supabase.auth.signOut();
-        return fail("This account doesn't have admin access.");
+        // Same answer as a wrong password: don't confirm that these credentials are valid.
+        return fail("Wrong email or password.");
       }
       log.info({ userId: data.user.id }, "admin signed in");
       return null; // success → redirect below
